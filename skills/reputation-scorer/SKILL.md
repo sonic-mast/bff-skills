@@ -8,7 +8,7 @@ metadata:
   arguments: "doctor | status <agentId> | run <agentId> [--min-score]"
   entry: "reputation-scorer/reputation-scorer.ts"
   requires: "none"
-  tags: "identity, reputation, read-only"
+  tags: "infrastructure, read-only"
 ---
 
 # Agent Reputation Scorer

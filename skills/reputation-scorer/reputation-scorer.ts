@@ -289,4 +289,4 @@ program
     await runCommand(agentId, options.minScore);
   });
 
-program.parse();
+await program.parseAsync();
