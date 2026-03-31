@@ -138,5 +138,5 @@ All commands output JSON to stdout:
 - Uses MCP `reputation_get_summary` and `reputation_read_all_feedback` tools
 - Scores normalized from WAD (18 decimals) to 0-10 scale
 - Weighted scoring: recent feedback weighted more heavily
-- Pagination handled automatically for agents with >20 feedback entries
+- Single-pass analysis (for pagination support, call multiple times with cursor parameter)
 - Recommendations: TRUSTED (≥8), RELIABLE (≥6), CAUTION (<6), UNTRUSTED (<3)

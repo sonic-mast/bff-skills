@@ -167,6 +167,12 @@ async function statusCommand(agentId: number): Promise<void> {
     }
     
     const data = summary.data as ReputationSummary;
+    if (!data || !data.averageRating) {
+      console.log(JSON.stringify({
+        error: 'No reputation data returned - agent may not exist or have no feedback'
+      }));
+      process.exit(1);
+    }
     const normalizedScore = wadToScore(data.averageRating);
     
     const result = {
