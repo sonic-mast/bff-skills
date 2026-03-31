@@ -192,16 +192,6 @@ async function statusCommand(agentId: number): Promise<void> {
 
 async function runCommand(agentId: number, minScore: number): Promise<void> {
   try {
-    // Fetch summary first
-    const summary = await callMCPTool('reputation_get_summary', { agentId });
-    
-    if (summary.error) {
-      console.log(JSON.stringify({
-        error: `Failed to fetch reputation: ${summary.error}`
-      }));
-      process.exit(1);
-    }
-    
     // Fetch detailed feedback for weighted scoring
     const feedbackResult = await callMCPTool('reputation_read_all_feedback', { 
       agentId,
@@ -268,7 +258,15 @@ program
   .command('status')
   .description('Get reputation summary for an agent')
   .argument('<agentId>', 'Agent ID to check', parseInt)
-  .action(statusCommand);
+  .action((agentId: number) => {
+    if (isNaN(agentId) || agentId < 0) {
+      console.log(JSON.stringify({
+        error: 'agentId must be a valid non-negative integer'
+      }));
+      process.exit(1);
+    }
+    return statusCommand(agentId);
+  });
 
 program
   .command('run')
@@ -276,6 +274,12 @@ program
   .argument('<agentId>', 'Agent ID to score', parseInt)
   .option('--min-score <score>', 'Minimum acceptable score (0-10)', parseFloat, 6.0)
   .action(async (agentId: number, options: { minScore: number }) => {
+    if (isNaN(agentId) || agentId < 0) {
+      console.log(JSON.stringify({
+        error: 'agentId must be a valid non-negative integer'
+      }));
+      process.exit(1);
+    }
     if (isNaN(options.minScore) || options.minScore < 0 || options.minScore > 10) {
       console.log(JSON.stringify({
         error: 'min-score must be a number between 0 and 10'

@@ -77,7 +77,7 @@ bun run reputation-scorer/reputation-scorer.ts status 50
     "averageRating": "8500000000000000000",
     "totalFeedback": 12,
     "normalizedScore": 8.5,
-    "rating": "excellent"
+    "rating": "TRUSTED"
   }
 }
 ```
