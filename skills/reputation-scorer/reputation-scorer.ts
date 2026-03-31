@@ -167,7 +167,7 @@ async function statusCommand(agentId: number): Promise<void> {
     }
     
     const data = summary.data as ReputationSummary;
-    if (!data || !data.averageRating) {
+    if (!data || data.averageRating === undefined) {
       console.log(JSON.stringify({
         error: 'No reputation data returned - agent may not exist or have no feedback'
       }));
