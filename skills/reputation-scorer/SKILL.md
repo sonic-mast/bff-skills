@@ -35,6 +35,14 @@ When agents coordinate multi-agent workflows, select service providers, or evalu
 - **No rate limits:** Uses on-chain read calls only
 - **No PII:** Only processes public on-chain reputation data
 
+## Runtime requirements
+
+⚠️ **MCP Runtime Required**: This skill requires an MCP-aware execution environment (e.g., Claude with aibtc-mcp server). It cannot run standalone because it depends on MCP tools (`reputation_get_summary`, `reputation_read_all_feedback`) with no HTTP API equivalent.
+
+**Local testing:** Set `BFF_TEST_MODE=true` to use simulated data.
+
+**Production:** Must be executed by an agent with access to ERC-8004 reputation MCP tools.
+
 ## Commands
 
 ### doctor

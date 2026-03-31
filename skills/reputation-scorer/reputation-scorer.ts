@@ -50,12 +50,13 @@ interface ScoringResult {
 
 // MCP tool execution helper
 async function callMCPTool(toolName: string, params: Record<string, any> = {}): Promise<MCPResult> {
-  // In BFF skills, we output JSON that the MCP-aware agent will execute
-  // For local testing, we simulate MCP responses
+  // CRITICAL: This skill requires MCP runtime environment
+  // It cannot run standalone - must be executed by an MCP-aware agent
+  
   const isTest = process.env.BFF_TEST_MODE === 'true';
   
   if (isTest) {
-    // Simulated responses for testing
+    // Simulated responses for local testing only
     if (toolName === 'reputation_get_summary') {
       return {
         status: 'ok',
@@ -84,15 +85,17 @@ async function callMCPTool(toolName: string, params: Record<string, any> = {}): 
     }
   }
   
-  // Real MCP execution - agent will handle this
-  console.error(`[MCP] Calling ${toolName} with params:`, JSON.stringify(params));
-  
-  // Return placeholder - agent intercepts and executes
-  return {
-    status: 'pending',
-    tool: toolName,
-    params
-  };
+  // Production: Exit with clear error - this skill requires MCP runtime
+  console.error(JSON.stringify({
+    error: 'MCP_RUNTIME_REQUIRED',
+    message: `This skill requires an MCP-aware agent to execute ${toolName}`,
+    details: {
+      tool: toolName,
+      params,
+      solution: 'Run this skill through an MCP-enabled agent (e.g., Claude with aibtc-mcp server)'
+    }
+  }, null, 2));
+  process.exit(1);
 }
 
 // Convert WAD (18 decimal) to normalized 0-10 score
