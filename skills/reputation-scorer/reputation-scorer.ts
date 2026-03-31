@@ -102,7 +102,7 @@ async function callMCPTool(toolName: string, params: Record<string, any> = {}): 
 function wadToScore(wadString: string): number {
   const wad = BigInt(wadString);
   const normalized = Number(wad) / 1e18;
-  return Math.round(normalized * 100) / 100; // 2 decimal precision
+  return Math.floor(normalized * 100) / 100; // 2 decimal precision, floor to avoid threshold inflation
 }
 
 // Calculate weighted score with recency bias
@@ -131,7 +131,7 @@ function calculateWeightedScore(feedback: FeedbackEntry[]): number {
   }
   
   return totalWeight > 0 
-    ? Math.round((weightedSum / totalWeight) * 100) / 100
+    ? Math.floor((weightedSum / totalWeight) * 100) / 100
     : 0;
 }
 
@@ -145,14 +145,20 @@ function getRecommendation(score: number): string {
 
 // Command implementations
 async function doctorCommand(): Promise<void> {
+  // NOTE: This is a capability declaration, not a live connectivity test.
+  // MCP tool availability is verified at runtime when commands execute.
+  // In test mode, simulated responses are used. In production, the MCP
+  // agent must provide these tools or commands will fail with clear errors.
+  
   const result = {
     status: 'ok',
-    tools_available: [
+    tools_required: [
       'reputation_get_summary',
       'reputation_read_all_feedback'
     ],
     network: process.env.STACKS_NETWORK || 'mainnet',
-    test_mode: process.env.BFF_TEST_MODE === 'true'
+    test_mode: process.env.BFF_TEST_MODE === 'true',
+    note: 'This skill requires MCP runtime with ERC-8004 reputation tools'
   };
   
   console.log(JSON.stringify(result, null, 2));
