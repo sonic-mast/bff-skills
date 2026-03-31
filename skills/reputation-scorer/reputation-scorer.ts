@@ -276,9 +276,9 @@ program
   .argument('<agentId>', 'Agent ID to score', parseInt)
   .option('--min-score <score>', 'Minimum acceptable score (0-10)', parseFloat, 6.0)
   .action(async (agentId: number, options: { minScore: number }) => {
-    if (options.minScore < 0 || options.minScore > 10) {
+    if (isNaN(options.minScore) || options.minScore < 0 || options.minScore > 10) {
       console.log(JSON.stringify({
-        error: 'min-score must be between 0 and 10'
+        error: 'min-score must be a number between 0 and 10'
       }));
       process.exit(1);
     }
