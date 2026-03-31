@@ -34,12 +34,13 @@ $ BFF_TEST_MODE=true bun run reputation-scorer.ts doctor
 ```json
 {
   "status": "ok",
-  "tools_available": [
+  "tools_required": [
     "reputation_get_summary",
     "reputation_read_all_feedback"
   ],
   "network": "mainnet",
-  "test_mode": true
+  "test_mode": true,
+  "note": "This skill requires MCP runtime with ERC-8004 reputation tools"
 }
 ```
 

@@ -57,8 +57,10 @@ bun run reputation-scorer/reputation-scorer.ts doctor
 ```json
 {
   "status": "ok",
-  "tools_available": ["reputation_get_summary", "reputation_read_all_feedback"],
-  "network": "mainnet"
+  "tools_required": ["reputation_get_summary", "reputation_read_all_feedback"],
+  "network": "mainnet",
+  "test_mode": false,
+  "note": "This skill requires MCP runtime with ERC-8004 reputation tools"
 }
 ```
 
