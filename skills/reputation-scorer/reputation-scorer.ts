@@ -205,7 +205,13 @@ async function runCommand(agentId: number, minScore: number): Promise<void> {
       process.exit(1);
     }
     
-    const feedback = feedbackResult.data?.entries || [];
+    const feedback = feedbackResult.data?.entries;
+    if (!feedback || !Array.isArray(feedback)) {
+      console.log(JSON.stringify({
+        error: `No feedback data returned for agent ${agentId}`
+      }));
+      process.exit(1);
+    }
     const score = calculateWeightedScore(feedback);
     
     // Count recent feedback (last 90 days)
