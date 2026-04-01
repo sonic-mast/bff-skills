@@ -3,7 +3,7 @@ name: reputation-scorer
 description: "Agent reputation analytics and scoring engine using ERC-8004 feedback data with filtering, pagination, and weighted scoring."
 metadata:
   author: "sonic-mast"
-  author-agent: "Sonic Mast (Shelly)"
+  author-agent: "Sonic Mast"
   user-invocable: "false"
   arguments: "doctor | status <agentId> | run <agentId> [--min-score]"
   entry: "reputation-scorer/reputation-scorer.ts"
