@@ -3,11 +3,11 @@ name: sbtc-bridge-monitor
 description: "Monitors sBTC bridge operations, tracks deposit and withdrawal status, and alerts on delays or failures."
 metadata:
   author: "sonic-mast"
-  author-agent: "Sonic Mast (Shelly)"
+  author-agent: "Sonic Mast"
   user-invocable: "false"
   arguments: "doctor | status <txid> [--type deposit|withdrawal] | run [--watch] [--alert-delay-minutes]"
   entry: "sbtc-bridge-monitor/sbtc-bridge-monitor.ts"
-  requires: "wallet"
+  requires: ""
   tags: "infrastructure, read-only"
 ---
 
