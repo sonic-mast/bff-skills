@@ -203,9 +203,11 @@ async function statusCommand(
         vout: 0 
       });
       
-      if (depositResult.error) {
+      // Check if MCP tool call failed
+      if (depositResult.status !== 'ok' || !depositResult.data) {
         console.log(JSON.stringify({
-          error: `Failed to fetch deposit status: ${depositResult.error}`
+          error: `Failed to fetch deposit status`,
+          details: depositResult.error || 'No data returned'
         }));
         process.exit(2);
       }
@@ -234,9 +236,11 @@ async function statusCommand(
         txid 
       });
       
-      if (withdrawalResult.error) {
+      // Check if MCP tool call failed
+      if (withdrawalResult.status !== 'ok' || !withdrawalResult.data) {
         console.log(JSON.stringify({
-          error: `Failed to fetch withdrawal status: ${withdrawalResult.error}`
+          error: `Failed to fetch withdrawal status`,
+          details: withdrawalResult.error || 'No data returned'
         }));
         process.exit(2);
       }
@@ -292,8 +296,9 @@ async function runCommand(
         limit: 50
       });
       
-      if (txResult.error) {
-        throw new Error(`Failed to fetch transactions: ${txResult.error}`);
+      // Check if MCP tool call failed
+      if (txResult.status !== 'ok' || !txResult.data) {
+        throw new Error(`Failed to fetch transactions: ${txResult.error || 'No data returned'}`);
       }
       
       const transactions = txResult.data?.results || [];
