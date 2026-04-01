@@ -1,4 +1,4 @@
-#!/usr/bin/env -S bun run
+#!/usr/bin/env bun
 /**
  * reputation-scorer.ts
  * 

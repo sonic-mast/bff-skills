@@ -7,7 +7,7 @@ metadata:
   user-invocable: "false"
   arguments: "doctor | status <agentId> | run <agentId> [--min-score]"
   entry: "reputation-scorer/reputation-scorer.ts"
-  requires: "none"
+  requires: ""
   tags: "infrastructure, read-only"
 ---
 
