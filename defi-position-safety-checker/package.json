@@ -1,0 +1,18 @@
+{
+  "name": "defi-position-safety-checker",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "defi-position-safety-checker.ts",
+  "scripts": {
+    "start": "bun run defi-position-safety-checker.ts",
+    "doctor": "bun run defi-position-safety-checker.ts doctor",
+    "status": "bun run defi-position-safety-checker.ts status",
+    "monitor": "bun run defi-position-safety-checker.ts monitor",
+    "run": "bun run defi-position-safety-checker.ts run",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "commander": "^11.1.0"
+  },
+  "devDependencies": {}
+}
