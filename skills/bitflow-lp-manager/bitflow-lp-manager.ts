@@ -208,15 +208,32 @@ async function fetchPoolRatio(pool: PoolConfig): Promise<PoolRatio> {
     }
   );
 
-  // If contract read also fails, return placeholder (dry-run will still work)
+  // If contract read fails, throw — never use hardcoded ratios for financial calculations.
+  // Hardcoded values are pool-specific and would produce wildly wrong amounts for other pools.
   if (!res.ok) {
-    console.error("Warning: could not fetch live pool ratio; using fallback 1:0.000267 (STX:sBTC)");
-    return { reserveA: 3_740_000_000, reserveB: 1_000_000, totalLp: 100_000_000 };
+    throw new Error(
+      `Pool ratio unavailable for ${pool.id}: Bitflow API unreachable and contract fallback failed (HTTP ${res.status}). ` +
+      `Cannot safely compute amounts without live reserve data.`
+    );
   }
 
   const d = await res.json();
-  // Parse Clarity value — simplified
-  return { reserveA: 3_740_000_000, reserveB: 1_000_000, totalLp: 100_000_000 };
+  // If the contract returned structured reserve fields, use them.
+  if (d.reserveA !== undefined) {
+    return {
+      reserveA: Number(d.reserveA),
+      reserveB: Number(d.reserveB),
+      totalLp: Number(d.totalLpSupply || d.totalLp || 1),
+    };
+  }
+
+  // Clarity read-only responses return hex-encoded data ({ okay: true, result: "0x..." }).
+  // Decoding raw Clarity hex requires a Clarity parser — not implemented here.
+  // Block rather than silently use stale pool-specific hardcoded values that differ across pools.
+  throw new Error(
+    `Pool ratio unavailable for ${pool.id}: Bitflow API unreachable and Clarity contract response ` +
+    `cannot be decoded. Cannot safely compute liquidity amounts without live reserve data.`
+  );
 }
 
 // ── LP position helpers ────────────────────────────────────────────────────────
@@ -413,7 +430,13 @@ async function cmdRun(opts: {
     const gasOk = stxBalance >= gasNeeded;
 
     // Get pool ratio to calculate required token B amount
-    const ratio = await fetchPoolRatio(pool);
+    let ratio: PoolRatio;
+    try {
+      ratio = await fetchPoolRatio(pool);
+    } catch (e: any) {
+      blocked("POOL_RATIO_UNAVAILABLE", e.message, "Retry when Bitflow API is available");
+      return;
+    }
     const priceRatio = ratio.reserveA > 0 ? ratio.reserveB / ratio.reserveA : 0;
     const amountTokenB = Math.ceil(amountStx * priceRatio);
     const slippageFactor = 1 - slippagePct / 100;
@@ -543,7 +566,13 @@ async function cmdRun(opts: {
     }
 
     // Estimate token outputs
-    const ratio = await fetchPoolRatio(pool);
+    let ratio: PoolRatio;
+    try {
+      ratio = await fetchPoolRatio(pool);
+    } catch (e: any) {
+      blocked("POOL_RATIO_UNAVAILABLE", e.message, "Retry when Bitflow API is available");
+      return;
+    }
     const removeFraction = ratio.totalLp > 0 ? lpAmount / ratio.totalLp : 0;
     const estTokenA = Math.floor(ratio.reserveA * removeFraction);
     const estTokenB = Math.floor(ratio.reserveB * removeFraction);
