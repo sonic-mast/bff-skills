@@ -117,7 +117,10 @@ function loadWalletAddress(): string {
       try {
         const data = JSON.parse(fs.readFileSync(p, "utf8"));
         // Support both array format and single-wallet format
-        if (Array.isArray(data) && data.length > 0) return data[0].stxAddress || data[0].address;
+        if (Array.isArray(data) && data.length > 0) {
+          const addr = data[0].stxAddress || data[0].address;
+          if (addr) return addr;
+        }
         if (data.stxAddress) return data.stxAddress;
         if (data.address) return data.address;
         if (data.mainnet?.stxAddress) return data.mainnet.stxAddress;
