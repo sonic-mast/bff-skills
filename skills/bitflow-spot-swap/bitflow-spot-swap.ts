@@ -176,9 +176,15 @@ async function findToken(
     (t["token-id"] ?? "").toLowerCase() === sym
   );
   if (!match) return null;
+  const tokenDecimals = match.tokenDecimals ?? match.decimals;
+  if (tokenDecimals === undefined || tokenDecimals === null) {
+    // Cannot safely determine decimals — refusing to default to avoid incorrect scaling
+    process.stderr.write(`Token ${symbol}: no decimals metadata from SDK\n`);
+    return null;
+  }
   return {
     tokenId: match.tokenId ?? match["token-id"],
-    tokenDecimals: match.tokenDecimals ?? 6,
+    tokenDecimals,
     symbol: match.symbol ?? symbol.toUpperCase(),
   };
 }
@@ -260,7 +266,7 @@ async function executeSwap(opts: {
     network,
     senderKey: opts.stxPrivateKey,
     anchorMode: AnchorMode.Any,
-    fee: 5000n,
+    fee: 50000n,
   });
 
   const broadcastRes = await broadcastTransaction({ transaction: tx, network });
@@ -479,8 +485,8 @@ async function cmdSwap(opts: {
 
   // Load wallet
   const password = opts.walletPassword ?? process.env.AIBTC_WALLET_PASSWORD ?? "";
-  if (!password) {
-    fail("NO_PASSWORD", "Wallet password required — set AIBTC_WALLET_PASSWORD or use --wallet-password", "Set AIBTC_WALLET_PASSWORD env var");
+  if (!password && !process.env.STACKS_PRIVATE_KEY) {
+    fail("NO_PASSWORD", "Wallet password required — set AIBTC_WALLET_PASSWORD or use --wallet-password", "Set AIBTC_WALLET_PASSWORD or STACKS_PRIVATE_KEY env var");
     return;
   }
 
