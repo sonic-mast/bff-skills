@@ -366,7 +366,7 @@ async function cmdRun(opts: {
   const slippagePct = parseFloat(opts.slippage);
   const maxUstx = parseInt(opts.maxUstx, 10);
 
-  if (isNaN(slippagePct) || slippagePct <= 0 || slippagePct > MAX_SLIPPAGE_PCT) {
+  if (isNaN(slippagePct) || slippagePct < 0 || slippagePct > MAX_SLIPPAGE_PCT) {
     fail("INVALID_SLIPPAGE", `Slippage must be 0–${MAX_SLIPPAGE_PCT}%`, `Set --slippage between 0 and ${MAX_SLIPPAGE_PCT}`);
     return;
   }
@@ -440,7 +440,7 @@ async function cmdRun(opts: {
     const priceRatio = ratio.reserveA > 0 ? ratio.reserveB / ratio.reserveA : 0;
     const amountTokenB = Math.ceil(amountStx * priceRatio);
     const slippageFactor = 1 - slippagePct / 100;
-    const minLpOut = Math.floor((amountStx / ratio.reserveA) * ratio.totalLp * slippageFactor);
+    const minLpOut = ratio.reserveA > 0 ? Math.floor((amountStx / ratio.reserveA) * ratio.totalLp * slippageFactor) : 0;
 
     // Check token B balance (sBTC or other)
     let tokenBBalance = 0;
@@ -487,7 +487,7 @@ async function cmdRun(opts: {
             type: "stx",
             address: walletAddress,
             condition: "lte",
-            amount: amountStx + ESTIMATED_TX_FEE_USTX,
+            amount: amountStx,
           },
         ],
       },
