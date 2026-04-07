@@ -17,12 +17,16 @@ Execute a single on-demand token swap on Bitflow DEX via the official `@bitflowl
 
 The fundamental DeFi primitive: swap any supported Bitflow token pair atomically in one transaction. Designed for agents that need to trade once on a signal — not on a schedule.
 
-## How It Works
+## What it does
 
 1. `quote` fetches a live route from Bitflow and returns expected output, price impact, and minimum received
 2. `swap` without `--confirm` returns the same quote as `blocked` — safe to inspect
 3. `swap --confirm` executes the swap on-chain, returns tx hash and explorer link
 4. All amounts in human-readable units (STX not uSTX, sBTC not sats)
+
+## Why agents need it
+
+Agents responding to market signals need to execute token swaps without manual intervention. This skill provides a safe, auditable swap primitive with hardcoded slippage limits, gas reserve enforcement, and a mandatory confirmation gate — so agents can act on-chain without risking runaway spend.
 
 ## Quick Start
 
@@ -76,7 +80,7 @@ Execute a swap. Without `--confirm`, returns live quote as `blocked`. With `--co
 | `--confirm` | No | Required to execute — omit to preview |
 | `--wallet-password` | No | Fallback (prefer `AIBTC_WALLET_PASSWORD` env var) |
 
-## Safety Guardrails (enforced in code)
+## Safety notes
 
 | Guardrail | Limit | Enforcement |
 |-----------|-------|-------------|
@@ -86,6 +90,7 @@ Execute a swap. Without `--confirm`, returns live quote as `blocked`. With `--co
 | Minimum STX reserve | 500,000 uSTX (0.5 STX) | Error `INSUFFICIENT_GAS_RESERVE` |
 | Network | Mainnet only | Hard-coded `STACKS_MAINNET` |
 | Private key exposure | Never | Zero-exposure in all output |
+| Token decimals | SDK-enforced | Returns error if SDK provides no decimal metadata |
 
 ## Token Amounts
 
@@ -97,7 +102,7 @@ Pass `--amount` in human-readable units:
 | sBTC | `--amount 0.001` | 0.001 sBTC (= 100,000 sats) |
 | WELSH | `--amount 500` | 500 WELSH |
 
-## Output Format
+## Output contract
 
 All commands emit strict JSON to stdout:
 
@@ -116,6 +121,21 @@ All commands emit strict JSON to stdout:
     "explorerUrl": "https://explorer.hiro.so/txid/0x..."
   },
   "error": null
+}
+```
+
+Error format:
+
+```json
+{
+  "status": "error",
+  "action": "Check error and retry",
+  "data": {},
+  "error": {
+    "code": "SLIPPAGE_LIMIT",
+    "message": "Slippage 6% exceeds hard limit of 5%",
+    "next": "Reduce --slippage to ≤ 5"
+  }
 }
 ```
 

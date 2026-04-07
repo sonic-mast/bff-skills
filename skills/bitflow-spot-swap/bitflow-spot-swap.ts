@@ -122,9 +122,18 @@ async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string;
   if (fs.existsSync(legacyPath)) {
     try {
       const w = JSON.parse(fs.readFileSync(legacyPath, "utf-8"));
-      const mnemonic = w.mnemonic ?? w.encrypted_mnemonic ?? w.encryptedMnemonic;
-      if (mnemonic) {
-        const wallet = await generateWallet({ secretKey: mnemonic, password });
+      // Plain mnemonic: use directly without a password
+      if (w.mnemonic) {
+        const wallet = await generateWallet({ secretKey: w.mnemonic, password: "" });
+        const account = deriveAccount(wallet, 0);
+        return { stxPrivateKey: account.stxPrivateKey, stxAddress: getStxAddress(account) };
+      }
+      // Encrypted mnemonic: must decrypt before passing to generateWallet
+      const encMnemonic = w.encrypted_mnemonic ?? w.encryptedMnemonic;
+      if (encMnemonic) {
+        const { decryptMnemonic } = await import("@stacks/encryption" as any);
+        const mnemonic = await decryptMnemonic(encMnemonic, password);
+        const wallet = await generateWallet({ secretKey: mnemonic, password: "" });
         const account = deriveAccount(wallet, 0);
         return { stxPrivateKey: account.stxPrivateKey, stxAddress: getStxAddress(account) };
       }
