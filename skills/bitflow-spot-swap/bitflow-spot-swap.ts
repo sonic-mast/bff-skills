@@ -543,6 +543,8 @@ async function cmdSwap(opts: {
 
   success("Swap broadcast successfully", {
     ...quoteData,
+    amountOut: result.actualAmountOut,
+    minimumReceived: result.actualAmountOut * (1 - slippagePct / 100),
     txId: result.txId,
     explorerUrl: result.explorerUrl,
     dryRun,
