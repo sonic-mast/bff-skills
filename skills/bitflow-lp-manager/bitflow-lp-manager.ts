@@ -489,6 +489,17 @@ async function cmdRun(opts: {
             condition: "lte",
             amount: amountStx,
           },
+          ...(pool.tokenB.contractId !== ".stx"
+            ? [
+                {
+                  type: "fungible-token",
+                  address: walletAddress,
+                  asset: pool.tokenB.contractId,
+                  condition: "lte",
+                  amount: amountTokenB,
+                },
+              ]
+            : []),
         ],
       },
     };
