@@ -8,7 +8,7 @@ metadata:
   arguments: "doctor | install-packs | quote | swap"
   entry: "bitflow-spot-swap/bitflow-spot-swap.ts"
   requires: "wallet, signing"
-  tags: "defi, write, mainnet-only, requires-funds, bitflow, swap, l2"
+  tags: "defi, write, mainnet-only, requires-funds, l2"
 ---
 
 # Bitflow Spot Swap

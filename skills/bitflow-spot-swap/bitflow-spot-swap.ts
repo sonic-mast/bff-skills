@@ -153,8 +153,8 @@ async function getStxBalance(address: string): Promise<number> {
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`Balance fetch failed: ${res.status}`);
-  const data = await res.json() as { balance: string };
-  return parseInt(data.balance, 16);
+  const data = await res.json() as { balance: string; locked: string };
+  return parseInt(data.balance, 16) - parseInt(data.locked, 16);
 }
 
 // ─── Bitflow SDK helpers ──────────────────────────────────────────────────────
