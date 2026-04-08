@@ -77,9 +77,9 @@ async function decryptAibtcKeystore(enc: Record<string, unknown>, password: stri
 async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string; stxAddress: string }> {
   // 1. Direct private key env var (for automation / smoke tests)
   if (process.env.STACKS_PRIVATE_KEY) {
-    const { getAddressFromPrivateKey, TransactionVersion } = await import("@stacks/transactions" as any);
+    const { getAddressFromPrivateKey } = await import("@stacks/transactions" as any);
     const key = process.env.STACKS_PRIVATE_KEY as string;
-    const address = getAddressFromPrivateKey(key, TransactionVersion.Mainnet);
+    const address = getAddressFromPrivateKey(key, "mainnet");
     return { stxPrivateKey: key, stxAddress: address };
   }
 
