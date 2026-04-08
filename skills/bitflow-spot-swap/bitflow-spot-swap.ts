@@ -154,7 +154,20 @@ async function getStxBalance(address: string): Promise<number> {
   });
   if (!res.ok) throw new Error(`Balance fetch failed: ${res.status}`);
   const data = await res.json() as { balance: string; locked: string };
-  return parseInt(data.balance, 16) - parseInt(data.locked, 16);
+  const balance = Number(BigInt("0x" + data.balance.replace("0x", "")));
+  const locked = Number(BigInt("0x" + (data.locked || "0").replace("0x", "")));
+  return balance - locked;
+}
+
+// ─── SDK timeout helper ───────────────────────────────────────────────────────
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
 }
 
 // ─── Bitflow SDK helpers ──────────────────────────────────────────────────────
@@ -177,7 +190,7 @@ async function findToken(
   sdk: any,
   symbol: string
 ): Promise<{ tokenId: string; tokenDecimals: number; symbol: string } | null> {
-  const tokens = await sdk.getAvailableTokens();
+  const tokens = await withTimeout(sdk.getAvailableTokens(), 10_000, "getAvailableTokens");
   const sym = symbol.toLowerCase();
   const match = tokens.find((t: any) =>
     (t.symbol ?? "").toLowerCase() === sym ||
@@ -205,7 +218,7 @@ async function fetchQuote(
   amountHuman: number
 ): Promise<{ expectedAmountOut: number; route: any; priceImpact: number | null } | null> {
   try {
-    const result = await sdk.getQuoteForRoute(tokenInId, tokenOutId, amountHuman);
+    const result = await withTimeout(sdk.getQuoteForRoute(tokenInId, tokenOutId, amountHuman), 10_000, "getQuoteForRoute");
     if (!result?.bestRoute?.quote) return null;
     return {
       expectedAmountOut: result.bestRoute.quote,
@@ -236,8 +249,10 @@ async function executeSwap(opts: {
   const slippageDecimal = opts.slippagePct / 100;
 
   // Get best route from SDK
-  const quoteResult = await opts.sdk.getQuoteForRoute(
-    opts.tokenIn.tokenId, opts.tokenOut.tokenId, opts.amountHuman
+  const quoteResult = await withTimeout(
+    opts.sdk.getQuoteForRoute(opts.tokenIn.tokenId, opts.tokenOut.tokenId, opts.amountHuman),
+    10_000,
+    "getQuoteForRoute"
   );
   if (!quoteResult?.bestRoute?.route) {
     throw new Error(`No swap route for ${opts.tokenIn.symbol} → ${opts.tokenOut.symbol}`);
@@ -250,10 +265,10 @@ async function executeSwap(opts: {
     tokenYDecimals: opts.tokenOut.tokenDecimals,
   };
 
-  const swapParams = await opts.sdk.prepareSwap(
-    swapExecutionData,
-    opts.senderAddress,
-    slippageDecimal
+  const swapParams = await withTimeout(
+    opts.sdk.prepareSwap(swapExecutionData, opts.senderAddress, slippageDecimal),
+    10_000,
+    "prepareSwap"
   );
 
   if (opts.dryRun) {
@@ -299,7 +314,7 @@ async function cmdDoctor(): Promise<void> {
   // Bitflow SDK + API
   try {
     const sdk = await getBitflowSdk();
-    const tokens = await sdk.getAvailableTokens();
+    const tokens = await withTimeout(sdk.getAvailableTokens(), 10_000, "getAvailableTokens");
     checks.bitflow = { ok: true, message: `Bitflow API reachable — ${tokens.length} tokens available` };
   } catch (e: any) {
     checks.bitflow = { ok: false, message: `Bitflow SDK error: ${e.message}. Run install-packs first.` };
