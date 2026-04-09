@@ -25,7 +25,7 @@ const EXPLORER_BASE = "https://explorer.hiro.so/txid";
 
 // Hard limits — thrown as errors, not suggestions
 const MAX_SLIPPAGE_PCT = 5;
-const MIN_GAS_USTX = 500_000; // 0.5 STX reserved for gas — enforced before every write
+const MIN_GAS_USTX = 500_000n; // 0.5 STX reserved for gas — enforced before every write
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -148,15 +148,14 @@ async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string;
 
 // ─── Balance helpers ──────────────────────────────────────────────────────────
 
-async function getStxBalance(address: string): Promise<number> {
+async function getStxBalance(address: string): Promise<bigint> {
   const res = await fetch(`${STACKS_API}/v2/accounts/${address}?proof=0`, {
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`Balance fetch failed: ${res.status}`);
   const data = await res.json() as { balance: string; locked: string };
-  const balance = Number(BigInt("0x" + data.balance.replace("0x", "")));
-  const locked = Number(BigInt("0x" + (data.locked || "0").replace("0x", "")));
-  return balance - locked;
+  // BigInt() handles "0x"-prefixed hex natively — no precision loss
+  return BigInt(data.balance) - BigInt(data.locked || "0");
 }
 
 // ─── SDK timeout helper ───────────────────────────────────────────────────────
@@ -524,7 +523,7 @@ async function cmdSwap(opts: {
   }
 
   // Balance check — enforce minimum 0.5 STX gas reserve
-  let stxBalance: number;
+  let stxBalance: bigint;
   try {
     stxBalance = await getStxBalance(stxAddress);
   } catch (e: any) {
@@ -534,13 +533,13 @@ async function cmdSwap(opts: {
 
   // For STX-in swaps: need amount + gas reserve. For other tokens: just gas reserve for fees.
   const isStxIn = tokenIn.symbol.toUpperCase() === "STX";
-  const amountInUstx = isStxIn ? Math.ceil(amountHuman * 1_000_000) : 0;
+  const amountInUstx = isStxIn ? BigInt(Math.round(amountHuman * 1_000_000)) : 0n;
   const requiredUstx = amountInUstx + MIN_GAS_USTX;
 
   if (stxBalance < requiredUstx) {
     fail(
       "INSUFFICIENT_BALANCE",
-      `Need ${requiredUstx / 1_000_000} STX (${isStxIn ? `${amountHuman} STX swap ` : ""}+ 0.5 STX gas reserve), have ${stxBalance / 1_000_000} STX`,
+      `Need ${Number(requiredUstx) / 1_000_000} STX (${isStxIn ? `${amountHuman} STX swap ` : ""}+ 0.5 STX gas reserve), have ${Number(stxBalance) / 1_000_000} STX`,
       "Add STX to wallet and retry"
     );
     return;
