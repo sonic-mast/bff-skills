@@ -434,7 +434,7 @@ async function cmdDelegate(opts: { amount: string; confirm: boolean; walletPassw
     };
 
     const tx = await makeContractCall(txOptions);
-    const result = await broadcastTransaction(tx, network);
+    const result = await broadcastTransaction({ transaction: tx, network });
 
     if (result.error) {
       fail(
@@ -524,7 +524,7 @@ async function cmdRevoke(opts: { confirm: boolean; walletPassword?: string }): P
     };
 
     const tx = await makeContractCall(txOptions);
-    const result = await broadcastTransaction(tx, network);
+    const result = await broadcastTransaction({ transaction: tx, network });
 
     if (result.error) {
       fail(
