@@ -86,6 +86,7 @@ async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string;
   }
 
   const { generateWallet, deriveAccount, getStxAddress } = await import("@stacks/wallet-sdk" as any);
+  // Note: import is shared across both wallet path branches below
 
   if (fs.existsSync(WALLETS_FILE)) {
     try {
@@ -123,10 +124,9 @@ async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string;
       const w = JSON.parse(fs.readFileSync(legacyPath, "utf-8"));
       const mnemonic = w.mnemonic ?? w.encrypted_mnemonic ?? w.encryptedMnemonic;
       if (mnemonic) {
-        const { generateWallet: gw, deriveAccount: da, getStxAddress: gsa } = await import("@stacks/wallet-sdk" as any);
-        const wallet = await gw({ secretKey: mnemonic, password });
-        const account = da(wallet, 0);
-        return { stxPrivateKey: account.stxPrivateKey, stxAddress: gsa(account) };
+          const wallet = await generateWallet({ secretKey: mnemonic, password });
+        const account = deriveAccount(wallet, 0);
+        return { stxPrivateKey: account.stxPrivateKey, stxAddress: getStxAddress(account) };
       }
     } catch { /* fall through */ }
   }
@@ -186,29 +186,6 @@ async function getPoxInfo(): Promise<{ reward_cycle_length: number; current_cycl
   return res.json() as Promise<any>;
 }
 
-// Deserialize Clarity value from hex result
-function parseClarityUint(hex: string): bigint | null {
-  try {
-    // Clarity uint serialized as: 0x01 + 16-byte big-endian uint
-    const buf = Buffer.from(hex.replace("0x", ""), "hex");
-    if (buf[0] !== 0x01) return null;
-    return buf.readBigUInt64BE(9); // last 8 bytes of 16-byte uint
-  } catch {
-    return null;
-  }
-}
-
-function parseClarityOptional(hex: string): string | null {
-  try {
-    const buf = Buffer.from(hex.replace("0x", ""), "hex");
-    if (buf[0] === 0x09) return null; // none
-    if (buf[0] === 0x0a) return "0x" + buf.slice(1).toString("hex"); // some
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 async function cmdDoctor(): Promise<void> {
@@ -234,6 +211,7 @@ async function cmdDoctor(): Promise<void> {
       `${STACKS_API}/extended/v1/contract/${FAST_POOL_ADDRESS}.${FAST_POOL_NAME}`,
       { signal: AbortSignal.timeout(10_000) }
     );
+    if (!res.ok) throw new Error(`Contract check failed: ${res.status}`);
     const d = await res.json() as any;
     checks.fast_pool_contract = "tx_id" in d ? d.tx_id : false;
   } catch {

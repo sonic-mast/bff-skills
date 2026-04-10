@@ -15,9 +15,13 @@ metadata:
 
 Delegate STX to [Mechanism Capital Fast Pool v3](https://explorer.hiro.so/txid/0x4abafe07d549148d881e2c808ba9dde8bf1dcb82478f7a482b569e631bc0607b) (`SP21YTSM60CAY6D011EZVEVNKXVW8FVZE198XEFFP.pox4-fast-pool-v3`) for liquid, non-custodial PoX4 stacking on Stacks mainnet.
 
-## How It Works
+## What it does
 
 The Fast Pool is a self-service pool: `delegate-stx` revokes any existing delegation, re-delegates the new amount, and immediately stacks for 1 cycle. No pre-authorization or multi-step setup needed. Each cycle renews automatically if `delegate-stack-stx-many` is called by pool operators or community members.
+
+## Why agents need it
+
+An autonomous agent holding STX can put idle capital to work without human intervention. This skill handles the full delegation lifecycle — delegate, check status, and revoke — so the agent can programmatically earn PoX4 yield and revoke when liquidity is needed, without touching a UI or custodying funds with a third party.
 
 ## Quick Start
 
@@ -75,7 +79,7 @@ Revoke delegation via `SP000000000000000000002Q6VF78.pox-4` `revoke-delegate-stx
 - **Without `--confirm`**: Returns preview of the revoke action.
 - **With `--confirm`**: Broadcasts revoke transaction. STX unlocks at the end of the current stacking cycle.
 
-## Safety Guardrails (enforced in code)
+## Safety notes
 
 | Guardrail | Limit | Enforcement |
 |-----------|-------|-------------|
@@ -87,7 +91,7 @@ Revoke delegation via `SP000000000000000000002Q6VF78.pox-4` `revoke-delegate-stx
 | Private key exposure | Never | Zero-exposure in all output |
 | Network | Mainnet only | Hard error on non-mainnet |
 
-## Output Format
+## Output contract
 
 All commands emit strict JSON to stdout:
 
