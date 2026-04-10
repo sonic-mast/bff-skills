@@ -263,14 +263,26 @@ async function cmdDoctor(): Promise<void> {
   });
 }
 
-async function cmdStatus(): Promise<void> {
-  // Need a placeholder address for read-only calls without wallet
-  const caller = process.env.STACKS_PRIVATE_KEY
-    ? (await (async () => {
-        const { getAddressFromPrivateKey, TransactionVersion } = await import("@stacks/transactions" as any);
-        return getAddressFromPrivateKey(process.env.STACKS_PRIVATE_KEY!, TransactionVersion.Mainnet);
-      })())
-    : "SPG6VGJ5GTG5QKBV2ZV03219GSGH37PJGXQYXP47"; // fallback: Sonic Mast address
+async function cmdStatus(opts: { walletPassword?: string }): Promise<void> {
+  let caller: string;
+
+  if (process.env.STACKS_PRIVATE_KEY) {
+    const { getAddressFromPrivateKey, TransactionVersion } = await import("@stacks/transactions" as any);
+    caller = getAddressFromPrivateKey(process.env.STACKS_PRIVATE_KEY!, TransactionVersion.Mainnet);
+  } else {
+    const pwd = opts.walletPassword ?? process.env.AIBTC_WALLET_PASSWORD ?? "";
+    if (!pwd) {
+      fail("NO_WALLET", "Cannot determine wallet address", "Set STACKS_PRIVATE_KEY env var or pass --wallet-password");
+      return;
+    }
+    try {
+      const keys = await getWalletKeys(pwd);
+      caller = keys.stxAddress;
+    } catch (e: any) {
+      fail("WALLET_ERROR", e.message, "Fix wallet setup: npx @aibtc/mcp-server@latest --install");
+      return;
+    }
+  }
 
   let delegatedAmount: bigint | null = null;
   let currentCycle: number | null = null;
@@ -361,7 +373,7 @@ async function cmdDelegate(opts: { amount: string; confirm: boolean; walletPassw
   }
 
   const password = opts.walletPassword ?? process.env.AIBTC_WALLET_PASSWORD ?? "";
-  if (!password) {
+  if (!password && !process.env.STACKS_PRIVATE_KEY) {
     fail("NO_PASSWORD", "Wallet password required", "Set AIBTC_WALLET_PASSWORD env var or pass --wallet-password");
     return;
   }
@@ -465,7 +477,7 @@ async function cmdRevoke(opts: { confirm: boolean; walletPassword?: string }): P
   }
 
   const password = opts.walletPassword ?? process.env.AIBTC_WALLET_PASSWORD ?? "";
-  if (!password) {
+  if (!password && !process.env.STACKS_PRIVATE_KEY) {
     fail("NO_PASSWORD", "Wallet password required", "Set AIBTC_WALLET_PASSWORD env var or pass --wallet-password");
     return;
   }
@@ -478,11 +490,14 @@ async function cmdRevoke(opts: { confirm: boolean; walletPassword?: string }): P
     return;
   }
 
-  let nonce = 0;
+  let nonce: number;
   try {
     const info = await getAccountInfo(keys.stxAddress);
     nonce = info.nonce;
-  } catch { /* use 0 as fallback */ }
+  } catch (e: any) {
+    fail("NONCE_FETCH_FAILED", `Could not fetch account nonce: ${e.message}`, "Check network and retry");
+    return;
+  }
 
   try {
     const {
@@ -542,9 +557,13 @@ program.command("doctor").description("Health check: wallet, API, and contract a
   try { await cmdDoctor(); } catch (e: any) { fail("UNEXPECTED", e.message, "Check logs"); }
 });
 
-program.command("status").description("Show current delegation status and balances").action(async () => {
-  try { await cmdStatus(); } catch (e: any) { fail("UNEXPECTED", e.message, "Check logs"); }
-});
+program
+  .command("status")
+  .description("Show current delegation status and balances")
+  .option("--wallet-password <pw>", "Wallet password (prefer AIBTC_WALLET_PASSWORD env var)")
+  .action(async (opts) => {
+    try { await cmdStatus(opts); } catch (e: any) { fail("UNEXPECTED", e.message, "Check logs"); }
+  });
 
 program
   .command("delegate")
