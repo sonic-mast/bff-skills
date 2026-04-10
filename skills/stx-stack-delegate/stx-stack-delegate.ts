@@ -122,7 +122,7 @@ async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string;
   if (fs.existsSync(legacyPath)) {
     try {
       const w = JSON.parse(fs.readFileSync(legacyPath, "utf-8"));
-      const mnemonic = w.mnemonic ?? w.encrypted_mnemonic ?? w.encryptedMnemonic;
+      const mnemonic = w.mnemonic;
       if (mnemonic) {
           const wallet = await generateWallet({ secretKey: mnemonic, password });
         const account = deriveAccount(wallet, 0);
