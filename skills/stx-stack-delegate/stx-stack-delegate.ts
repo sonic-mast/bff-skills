@@ -114,7 +114,7 @@ async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string;
         }
       }
     } catch (e: any) {
-      process.stderr.write(`Wallet decrypt error: ${e.message}\n`);
+      throw e; // Modern keystore found but decryption failed — don't fall through to legacy wallet
     }
   }
 
