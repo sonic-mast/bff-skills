@@ -383,8 +383,9 @@ program.command("run")
         `STX balance ${stxBalance} < gas reserve ${MIN_STX_GAS_USTX} μSTX. Fund wallet first.`,
         `Fund ${stxAddress}`);
 
-    // For STX inputs: additionally check we have enough STX for the swap
-    if (opts.tokenIn.toUpperCase() === "STX") {
+    // For STX/WSTX inputs: additionally check we have enough STX for the swap
+    // Compare resolved token ID so WSTX alias is also covered (both resolve to "token-wstx")
+    if (tokenIn === "token-wstx") {
       const amountInUstx = BigInt(Math.round(amountNum * 10 ** STX_DECIMALS));
       if (stxBalance < amountInUstx + MIN_STX_GAS_USTX)
         fail("INSUFFICIENT_BALANCE",

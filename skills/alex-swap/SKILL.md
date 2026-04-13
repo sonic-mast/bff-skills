@@ -15,12 +15,16 @@ metadata:
 
 Execute token swaps on [ALEX](https://app.alexlab.co) — the second-largest DEX on Stacks — with live quotes, multi-hop routing, and autonomous safety controls.
 
-## How It Works
+## What it does
 
 1. `quote` fetches a live price from the ALEX DEX via `alex-sdk`
 2. `run` (without `--confirm`) shows the quote and blocks
 3. `run --confirm` executes the swap via `swap-helper-v1-03` on Stacks mainnet
 4. Result includes tx hash, explorer link, and Telegram-friendly summary
+
+## Why agents need it
+
+ALEX is the second-largest DEX on Stacks. Agents need a reliable way to swap between STX, sBTC, USDA, and other Stacks-native tokens with slippage protection and spend limits — without building AMM integrations themselves. This skill abstracts the alex-sdk, wallet signing, and post-condition setup into a single CLI command.
 
 ## Quick Start
 
@@ -90,7 +94,7 @@ Get a live price quote for a swap. Read-only — no transaction required.
 | `swap-helper-v1-03` | `SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9` |
 | `amm-swap-pool-v1-1` | `SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9` |
 
-## Output Format
+## Output contract
 
 ```json
 {
@@ -110,7 +114,7 @@ Get a live price quote for a swap. Read-only — no transaction required.
 }
 ```
 
-## Safety Controls (enforced in code)
+## Safety notes
 
 | Control | Limit | Enforcement |
 |---------|-------|-------------|
