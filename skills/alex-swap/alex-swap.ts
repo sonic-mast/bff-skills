@@ -394,7 +394,7 @@ program.command("run")
     }
 
     // Execute swap via alex-sdk
-    const { StacksMainnet } = await import("@stacks/network" as any);
+    const { STACKS_MAINNET } = await import("@stacks/network" as any);
     const { makeContractCall, broadcastTransaction, PostConditionMode } = await import("@stacks/transactions" as any);
 
     let txId: string;
@@ -407,7 +407,7 @@ program.command("run")
         amountIn,
         minAmountOut,
         async (txOptions: any) => {
-          const network = new StacksMainnet();
+          const network = STACKS_MAINNET;
           const tx = await makeContractCall({
             ...txOptions,
             senderKey: stxPrivateKey!,
@@ -416,10 +416,9 @@ program.command("run")
             fee: txOptions.fee || 10000n,
             anchorMode: 3, // any
           });
-          const result = await broadcastTransaction({ transaction: tx, network,
-            attachment: undefined });
-          if ("error" in result) throw new Error(result.error + ": " + (result.reason ?? ""));
-          return result.txid as string;
+          // v7: broadcastTransaction returns txid string directly; throws on failure
+          const result = await broadcastTransaction({ transaction: tx, network });
+          return result as string;
         }
       );
     } catch (e: any) {
