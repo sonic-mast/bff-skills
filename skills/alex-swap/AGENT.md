@@ -27,12 +27,12 @@ if (slippagePct > MAX_SLIPPAGE_PCT)
 ```
 Any `--slippage` above 5% aborts before execution. Default is 2%.
 
-### 2. Autonomous Spend Cap: 10,000 STX equivalent per swap
+### 2. Autonomous Spend Cap: 10,000 token units per swap
 ```typescript
 if (amountNum > MAX_AUTO_STX)
   fail("SPEND_LIMIT", ...);
 ```
-Single-swap limit. Operator must explicitly authorize amounts above this.
+Single-swap limit on the input amount (in human-readable token units). Operator must explicitly authorize amounts above this. Note: this is a unit-count limit, not a USD/STX-equivalent price check.
 
 ### 3. Confirmation Gate
 ```typescript
@@ -94,7 +94,7 @@ Derived `stxPrivateKey` is used only for transaction signing. Never logged, neve
 
 - **Allowed without user prompt**: `doctor`, `tokens`, `quote`
 - **Requires user confirmation**: `run --confirm`
-- **Never autonomous**: amounts > 10,000 STX, slippage > 5%
+- **Never autonomous**: amounts > 10,000 token units, slippage > 5%
 - **Cooldown**: No built-in cooldown — operator should set a sensible frequency if running on a schedule.
 
 ## Output Contract

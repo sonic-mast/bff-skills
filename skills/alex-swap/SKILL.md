@@ -8,7 +8,7 @@ metadata:
   arguments: "doctor | install-packs | tokens | quote | run"
   entry: "alex-swap/alex-swap.ts"
   requires: "wallet, signing"
-  tags: "defi, write, mainnet-only, requires-funds, l2, dex, alex"
+  tags: "defi, write, mainnet-only, requires-funds, l2"
 ---
 
 # alex-swap — ALEX DEX Token Swaps

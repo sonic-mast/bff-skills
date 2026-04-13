@@ -130,7 +130,8 @@ async function getStxBalance(address: string): Promise<bigint> {
     { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) fail("API_ERROR", `Balance check failed: ${res.status}`, "Check network connectivity");
   const data: any = await res.json();
-  return BigInt(data.balance ?? "0");
+  // Subtract locked STX (e.g. from Stacking) to get spendable balance
+  return BigInt(data.balance ?? "0") - BigInt(data.locked ?? "0");
 }
 
 // ── Alex SDK integration ────────────────────────────────────────────────────────
@@ -158,9 +159,9 @@ function resolveTokenId(name: string): string {
     "SBTC":   "token-sbtc",
   };
   const resolved = MAP[n];
-  if (!resolved) fail("TOKEN_NOT_FOUND",
-    `Unknown token "${name}". Use "tokens" command to list available tokens.`,
-    "Run: bun run alex-swap/alex-swap.ts tokens");
+  // Fall back to the raw input (lowercased) so tokens returned by the `tokens`
+  // command can be used directly without needing a MAP entry.
+  if (!resolved) return name.trim().toLowerCase();
   return resolved;
 }
 
@@ -316,6 +317,8 @@ program.command("run")
       fail("INVALID_AMOUNT", "Amount must be a positive number", "Provide --amount > 0");
 
     const slippagePct = opts.slippage ? parseFloat(opts.slippage) : DEFAULT_SLIPPAGE_PCT;
+    if (isNaN(slippagePct))
+      fail("INVALID_SLIPPAGE", `Slippage "${opts.slippage}" is not a valid number`, "Use --slippage between 0.1 and 5");
     if (slippagePct > MAX_SLIPPAGE_PCT)
       fail("SLIPPAGE_LIMIT", `Slippage ${slippagePct}% exceeds hard max ${MAX_SLIPPAGE_PCT}%`, "Use --slippage ≤ 5");
     if (slippagePct <= 0)
@@ -340,7 +343,8 @@ program.command("run")
     }
 
     const amountOutHuman  = fromAlexUnits(amountOut!);
-    const minAmountOut    = BigInt(Math.floor(Number(amountOut!) * (1 - slippagePct / 100)));
+    // Use BigInt arithmetic throughout to avoid precision loss on large values
+    const minAmountOut    = (amountOut! * BigInt(Math.floor((100 - slippagePct) * 100))) / 10000n;
     const minAmountHuman  = fromAlexUnits(minAmountOut);
 
     // Show preview if no --confirm
@@ -358,9 +362,9 @@ program.command("run")
       );
     }
 
-    // Load wallet
+    // Load wallet — password is only required when not using STACKS_PRIVATE_KEY
     const password = opts.walletPassword ?? process.env.AIBTC_WALLET_PASSWORD ?? "";
-    if (!password)
+    if (!password && !process.env.STACKS_PRIVATE_KEY)
       fail("NO_PASSWORD",
         "Wallet password required. Use AIBTC_WALLET_PASSWORD env var or --wallet-password flag.",
         "Set AIBTC_WALLET_PASSWORD env var");
@@ -408,7 +412,7 @@ program.command("run")
             senderKey: stxPrivateKey!,
             network,
             postConditionMode: PostConditionMode.Deny,
-            fee: 5000n,
+            fee: txOptions.fee || 10000n,
             anchorMode: 3, // any
           });
           const result = await broadcastTransaction({ transaction: tx, network,
