@@ -206,7 +206,7 @@ program.command("doctor")
     // 3. ALEX SDK
     try {
       const sdk = await getAlex();
-      const tokens = await sdk.fetchSwappableCurrencyList?.() ?? [];
+      const tokens = await sdk.fetchSwappableCurrency();
       checks.alex_sdk = {
         ok: true,
         message: `alex-sdk OK — ${tokens.length ?? "?"} swappable tokens`,
@@ -262,7 +262,7 @@ program.command("tokens")
   .action(async () => {
     try {
       const sdk = await getAlex();
-      const list = await sdk.fetchSwappableCurrencyList?.() ?? [];
+      const list = await sdk.fetchSwappableCurrency();
       ok({ tokens: list, count: list.length }, "Use token IDs in --token-in / --token-out");
     } catch (e: any) {
       fail("SDK_ERROR", `Could not fetch token list: ${e.message}`, "Run install-packs first");
