@@ -23,6 +23,7 @@ const EXPLORER_BASE = "https://explorer.hiro.so/txid";
 const MAX_SLIPPAGE_PCT = 10;
 const MAX_TRADE_PCT = 20;
 const MIN_GAS_USTX = 100_000;
+const TX_FEE_USTX = 50_000;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -518,8 +519,8 @@ async function cmdRun(planId: string, confirm: boolean, walletPassword?: string,
     return blocked("Cooldown active.", { planId, cooldownRemaining: fmtDuration(remaining) });
   }
 
-  // Runtime --hodlmm-only flag overrides the plan setting
-  if (hodlmmOnly !== undefined) plan.hodlmmOnly = hodlmmOnly;
+  // Runtime --hodlmm-only flag overrides the plan setting (local only, does not mutate stored plan)
+  const effectiveHodlmmOnly = hodlmmOnly !== undefined ? hodlmmOnly : plan.hodlmmOnly;
 
   const password = walletPassword || process.env.AIBTC_WALLET_PASSWORD || "";
   const keys = await getWalletKeys(password);
@@ -556,15 +557,16 @@ async function cmdRun(planId: string, confirm: boolean, walletPassword?: string,
   }
 
   // Check gas reserve (STX required for gas regardless of which token is sold)
+  // TX_FEE_USTX is subtracted from the post-swap balance to ensure the reserve stays intact after fees
   const stxBal = await getStxBalance(keys.stxAddress);
   if (tokenIn.symbol.toUpperCase() === "STX") {
     const tradeAtomic = humanToAtomic(tradeAmountHuman, 6);
-    if (stxBal - Number(tradeAtomic) < MIN_GAS_USTX) {
+    if (stxBal - Number(tradeAtomic) - TX_FEE_USTX < MIN_GAS_USTX) {
       return fail("INSUFFICIENT_GAS", `Post-swap STX would be below ${MIN_GAS_USTX} uSTX gas reserve`, "Reduce trade size or top up STX");
     }
   } else {
-    if (stxBal < MIN_GAS_USTX) {
-      return fail("INSUFFICIENT_GAS", `STX balance (${stxBal} uSTX) below ${MIN_GAS_USTX} uSTX gas reserve`, "Top up STX to cover transaction fees");
+    if (stxBal - TX_FEE_USTX < MIN_GAS_USTX) {
+      return fail("INSUFFICIENT_GAS", `STX balance (${stxBal} uSTX) below ${MIN_GAS_USTX + TX_FEE_USTX} uSTX needed for gas + fee`, "Top up STX to cover transaction fees");
     }
   }
 
@@ -580,7 +582,7 @@ async function cmdRun(planId: string, confirm: boolean, walletPassword?: string,
       tokenInDecimals: tokenIn.decimals, tokenOutDecimals: tokenOut.decimals,
       amountHuman: tradeAmountHuman, senderAddress: keys.stxAddress,
       stxPrivateKey: keys.stxPrivateKey, slippagePct: plan.slippagePct, dryRun,
-      hodlmmOnly: plan.hodlmmOnly,
+      hodlmmOnly: effectiveHodlmmOnly,
     });
 
     const entry: RebalanceEntry = {
