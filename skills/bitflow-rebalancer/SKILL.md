@@ -150,7 +150,7 @@ All commands emit strict JSON to stdout:
 
 ## HODLMM Integration
 
-When `--hodlmm-only` is passed (in `configure` or `run`), the skill restricts routing to HODLMM liquidity pools. HODLMM pools offer concentrated liquidity and often achieve better prices for large swaps. Without the flag, the SDK's best-route resolver automatically considers HODLMM pools alongside standard AMM pools.
+When `--hodlmm-only` is passed (in `configure` or `run`), the preference is stored in the plan. The Bitflow SDK's best-route resolver considers HODLMM pools alongside standard AMM pools automatically. Use `--hodlmm-only` to flag that HODLMM-exclusive routing is preferred; the SDK will apply this preference where supported.
 
 ## State Files
 
