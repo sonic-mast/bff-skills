@@ -17,13 +17,17 @@ Maintains target portfolio allocations across Bitflow token pairs on Stacks main
 The agent calls `preview` to check drift and `run --confirm` to rebalance.
 HODLMM routes are preferred when available for improved price efficiency.
 
-## How It Works
+## What it does
 
 1. `configure` creates a local allocation plan with target percentages and drift threshold
 2. `status` checks current balances vs targets and calculates required trades
 3. `preview` shows the exact swaps needed (no tx yet)
 4. `run` executes swaps when drift exceeds threshold — requires `--confirm`
 5. Frequency-aware: `run` returns `blocked` if rebalanced within the cooldown window
+
+## Why agents need it
+
+Autonomous agents managing multi-token portfolios on Stacks drift from target allocations as prices move. Without automated rebalancing, agents must manually track drift and execute multi-step swaps. This skill gives agents a single `run --confirm` command that checks current allocation, determines required trades, and executes them via Bitflow — enabling hands-off portfolio maintenance within configured safety limits.
 
 ## Quick Start
 
@@ -114,7 +118,7 @@ If drift exceeds threshold, swaps enough Token A → Token B (or vice versa) to 
 | `AIBTC_DRY_RUN=1` | Simulate swaps without broadcasting |
 | `BITFLOW_API_HOST` | Override Bitflow API base URL |
 
-## Output Format
+## Output contract
 
 All commands emit strict JSON to stdout:
 
@@ -131,7 +135,7 @@ All commands emit strict JSON to stdout:
 }
 ```
 
-## Safety Guardrails (enforced in code)
+## Safety notes
 
 | Guardrail | Value | Enforcement |
 |-----------|-------|-------------|

@@ -86,7 +86,7 @@ function fail(code: string, message: string, next: string, data: Record<string, 
 
 function fmtNum(n: number, d = 6): string {
   if (n === 0) return "0";
-  if (n < 0.000001) return n.toExponential(4);
+  if (n > 0 && n < 0.000001) return n.toExponential(4);
   return n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: 0 });
 }
 
