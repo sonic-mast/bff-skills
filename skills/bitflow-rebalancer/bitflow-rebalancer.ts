@@ -231,8 +231,10 @@ async function findToken(sdk: any, symbol: string): Promise<TokenInfo | null> {
 async function getStxBalance(address: string): Promise<number> {
   const res = await fetch(`${STACKS_API}/v2/accounts/${address}?proof=0`, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`Balance fetch failed: ${res.status}`);
-  const data = await res.json() as { balance: string };
-  return parseInt(data.balance, 16);
+  const data = await res.json() as { balance: string; locked: string };
+  const total = parseInt(data.balance, 16);
+  const locked = parseInt(data.locked ?? "0x0", 16);
+  return total - locked; // spendable only — excludes STX locked in stacking
 }
 
 async function getTokenBalance(address: string, tokenContractId: string): Promise<number> {
@@ -268,29 +270,32 @@ async function fetchQuote(sdk: any, tokenInId: string, tokenOutId: string, amoun
 async function executeSwap(opts: {
   sdk: any; tokenInId: string; tokenOutId: string; tokenInDecimals: number; tokenOutDecimals: number;
   amountHuman: number; senderAddress: string; stxPrivateKey: string; slippagePct: number; dryRun: boolean;
-}): Promise<{ txId: string; explorerUrl: string }> {
+  hodlmmOnly: boolean;
+}): Promise<{ txId: string; explorerUrl: string; expectedAmountOut: number }> {
   const { makeContractCall, broadcastTransaction, AnchorMode, PostConditionMode } = await import("@stacks/transactions" as any);
   const { STACKS_MAINNET } = await import("@stacks/network" as any);
   const slippageDecimal = opts.slippagePct / 100;
-  const quoteResult = await opts.sdk.getQuoteForRoute(opts.tokenInId, opts.tokenOutId, opts.amountHuman);
+  const routeOpts = opts.hodlmmOnly ? { hodlmmOnly: true } : undefined;
+  const quoteResult = await opts.sdk.getQuoteForRoute(opts.tokenInId, opts.tokenOutId, opts.amountHuman, routeOpts);
   if (!quoteResult?.bestRoute?.route) throw new Error(`No swap route for ${opts.tokenInId} → ${opts.tokenOutId}`);
+  const expectedAmountOut: number = quoteResult.bestRoute.quote ?? 0;
   const swapParams = await opts.sdk.prepareSwap(
     { route: quoteResult.bestRoute.route, amount: opts.amountHuman, tokenXDecimals: opts.tokenInDecimals, tokenYDecimals: opts.tokenOutDecimals },
     opts.senderAddress, slippageDecimal
   );
   if (opts.dryRun) {
     const fakeTxId = "dry-run-" + crypto.randomBytes(8).toString("hex");
-    return { txId: fakeTxId, explorerUrl: `${EXPLORER_BASE}/${fakeTxId}?chain=mainnet` };
+    return { txId: fakeTxId, explorerUrl: `${EXPLORER_BASE}/${fakeTxId}?chain=mainnet`, expectedAmountOut };
   }
   const tx = await makeContractCall({
     contractAddress: swapParams.contractAddress, contractName: swapParams.contractName,
     functionName: swapParams.functionName, functionArgs: swapParams.functionArgs,
     postConditions: swapParams.postConditions, postConditionMode: PostConditionMode.Deny,
-    network: STACKS_MAINNET, senderKey: opts.stxPrivateKey, anchorMode: AnchorMode.Any, fee: 20000n,
+    network: STACKS_MAINNET, senderKey: opts.stxPrivateKey, anchorMode: AnchorMode.Any, fee: 50_000n,
   });
   const broadcastRes = await broadcastTransaction({ transaction: tx, network: STACKS_MAINNET });
   if (broadcastRes.error) throw new Error(`Broadcast failed: ${broadcastRes.error} — ${broadcastRes.reason ?? ""}`);
-  return { txId: broadcastRes.txid, explorerUrl: `${EXPLORER_BASE}/${broadcastRes.txid}?chain=mainnet` };
+  return { txId: broadcastRes.txid, explorerUrl: `${EXPLORER_BASE}/${broadcastRes.txid}?chain=mainnet`, expectedAmountOut };
 }
 
 
@@ -575,10 +580,11 @@ async function cmdRun(planId: string, confirm: boolean, walletPassword?: string,
       tokenInDecimals: tokenIn.decimals, tokenOutDecimals: tokenOut.decimals,
       amountHuman: tradeAmountHuman, senderAddress: keys.stxAddress,
       stxPrivateKey: keys.stxPrivateKey, slippagePct: plan.slippagePct, dryRun,
+      hodlmmOnly: plan.hodlmmOnly,
     });
 
     const entry: RebalanceEntry = {
-      timestamp: Date.now(), direction, amountIn: tradeAmountHuman, amountOut: 0,
+      timestamp: Date.now(), direction, amountIn: tradeAmountHuman, amountOut: result.expectedAmountOut,
       txId: result.txId, explorerUrl: result.explorerUrl,
       driftBefore: alloc.maxDrift, driftAfter: null,
     };
