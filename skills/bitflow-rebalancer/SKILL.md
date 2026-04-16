@@ -145,7 +145,7 @@ All commands emit strict JSON to stdout:
 | Cancelled plans | Permanent | Hard error `PLAN_CANCELLED` |
 | Private key exposure | Never | Zero in all output |
 | Min trade size | > 0 | Error `TRADE_TOO_SMALL` |
-| STX balance for gas | 1000 uSTX minimum | Error `INSUFFICIENT_GAS` |
+| STX balance for gas | 100,000 uSTX minimum | Error `INSUFFICIENT_GAS` |
 | Dry run mode | `AIBTC_DRY_RUN=1` | Simulates without broadcasting |
 
 ## HODLMM Integration

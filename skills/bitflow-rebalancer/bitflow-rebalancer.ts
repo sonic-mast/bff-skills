@@ -374,7 +374,7 @@ async function cmdConfigure(opts: { tokenA: string; targetA: string; tokenB: str
   const targetA = parseFloat(opts.targetA);
   const targetB = parseFloat(opts.targetB);
 
-  if (isNaN(targetA) || isNaN(targetB) || targetA + targetB !== 100) {
+  if (isNaN(targetA) || isNaN(targetB) || Math.abs(targetA + targetB - 100) > 0.01) {
     return fail("TARGETS_INVALID", `Targets must sum to 100 (got ${targetA} + ${targetB} = ${targetA + targetB})`, "Adjust --target-a and --target-b");
   }
 
@@ -498,11 +498,11 @@ async function cmdPreview(planId: string): Promise<void> {
     `⚠️ Add \`--confirm\` to execute this swap on-chain.`,
   ].join("\n");
 
-  blocked("Rebalance needed — add --confirm to execute.", { telegram, planId, trade: { direction: tradeDirection, amountIn: tradeAmountHuman, expectedOut: quote.expectedAmountOut, priceImpact: quote.priceImpact }, drift: alloc.maxDrift, allocation: { actualA: alloc.actualPctA.toFixed(1), actualB: alloc.actualPctB.toFixed(1) } });
+  success("preview", { telegram, planId, trade: { direction: tradeDirection, amountIn: tradeAmountHuman, expectedOut: quote.expectedAmountOut, priceImpact: quote.priceImpact }, drift: alloc.maxDrift, allocation: { actualA: alloc.actualPctA.toFixed(1), actualB: alloc.actualPctB.toFixed(1) } });
 }
 
 
-async function cmdRun(planId: string, confirm: boolean, walletPassword?: string): Promise<void> {
+async function cmdRun(planId: string, confirm: boolean, walletPassword?: string, hodlmmOnly?: boolean): Promise<void> {
   const plan = loadPlan(planId);
   if (!plan) return fail("PLAN_NOT_FOUND", `No plan with id ${planId}`, "Run `list` to see plans");
   if (plan.status === "cancelled") return fail("PLAN_CANCELLED", "This plan is cancelled", "Create a new plan");
@@ -511,6 +511,9 @@ async function cmdRun(planId: string, confirm: boolean, walletPassword?: string)
     const remaining = plan.cooldownMs - (Date.now() - plan.lastRebalanceAt);
     return blocked("Cooldown active.", { planId, cooldownRemaining: fmtDuration(remaining) });
   }
+
+  // Runtime --hodlmm-only flag overrides the plan setting
+  if (hodlmmOnly !== undefined) plan.hodlmmOnly = hodlmmOnly;
 
   const password = walletPassword || process.env.AIBTC_WALLET_PASSWORD || "";
   const keys = await getWalletKeys(password);
@@ -546,12 +549,16 @@ async function cmdRun(planId: string, confirm: boolean, walletPassword?: string)
     return blocked("Trade exceeds max 20% of portfolio.", { planId, tradePct: tradePctOfPortfolio.toFixed(1) });
   }
 
-  // Check gas reserve for STX
+  // Check gas reserve (STX required for gas regardless of which token is sold)
+  const stxBal = await getStxBalance(keys.stxAddress);
   if (tokenIn.symbol.toUpperCase() === "STX") {
-    const stxBal = await getStxBalance(keys.stxAddress);
     const tradeAtomic = humanToAtomic(tradeAmountHuman, 6);
     if (stxBal - Number(tradeAtomic) < MIN_GAS_USTX) {
       return fail("INSUFFICIENT_GAS", `Post-swap STX would be below ${MIN_GAS_USTX} uSTX gas reserve`, "Reduce trade size or top up STX");
+    }
+  } else {
+    if (stxBal < MIN_GAS_USTX) {
+      return fail("INSUFFICIENT_GAS", `STX balance (${stxBal} uSTX) below ${MIN_GAS_USTX} uSTX gas reserve`, "Top up STX to cover transaction fees");
     }
   }
 
@@ -661,8 +668,9 @@ program.command("run")
   .requiredOption("--plan <id>", "Plan ID")
   .option("--confirm", "Execute the swap on-chain", false)
   .option("--wallet-password <pw>", "Wallet password (prefer AIBTC_WALLET_PASSWORD env)")
+  .option("--hodlmm-only", "Override plan setting: restrict routing to HODLMM pools only", false)
   .action(async (opts) => {
-    try { await cmdRun(opts.plan, opts.confirm, opts.walletPassword); }
+    try { await cmdRun(opts.plan, opts.confirm, opts.walletPassword, opts.hodlmmOnly || undefined); }
     catch (e: any) { fail("UNEXPECTED", e.message, "Check wallet and Bitflow API"); }
   });
 
