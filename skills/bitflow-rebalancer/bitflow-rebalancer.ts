@@ -137,7 +137,7 @@ function walletExists(): boolean {
 }
 
 async function decryptAibtcKeystore(enc: any, password: string): Promise<string> {
-  const { scryptSync, createDecipheriv } = await import("crypto" as any);
+  const { scryptSync, createDecipheriv } = crypto;
   const { N, r, p, keyLen } = enc.scryptParams;
   const salt = Buffer.from(enc.salt, "base64");
   const iv = Buffer.from(enc.iv, "base64");
@@ -286,7 +286,7 @@ async function executeSwap(opts: {
     contractAddress: swapParams.contractAddress, contractName: swapParams.contractName,
     functionName: swapParams.functionName, functionArgs: swapParams.functionArgs,
     postConditions: swapParams.postConditions, postConditionMode: PostConditionMode.Deny,
-    network: STACKS_MAINNET, senderKey: opts.stxPrivateKey, anchorMode: AnchorMode.Any, fee: 5000n,
+    network: STACKS_MAINNET, senderKey: opts.stxPrivateKey, anchorMode: AnchorMode.Any, fee: 20000n,
   });
   const broadcastRes = await broadcastTransaction({ transaction: tx, network: STACKS_MAINNET });
   if (broadcastRes.error) throw new Error(`Broadcast failed: ${broadcastRes.error} — ${broadcastRes.reason ?? ""}`);
@@ -379,10 +379,11 @@ async function cmdConfigure(opts: { tokenA: string; targetA: string; tokenB: str
   }
 
   const threshold = parseFloat(opts.threshold);
-  if (threshold < 1) return fail("THRESHOLD_TOO_LOW", "Threshold must be >= 1%", "Use --threshold >= 1");
+  if (isNaN(threshold) || threshold < 1) return fail("THRESHOLD_TOO_LOW", "Threshold must be >= 1%", "Use --threshold >= 1");
   if (threshold > 20) return fail("THRESHOLD_TOO_HIGH", "Threshold must be <= 20%", "Use --threshold <= 20");
 
   const slippage = parseFloat(opts.slippage);
+  if (isNaN(slippage) || slippage <= 0) return fail("SLIPPAGE_INVALID", "Slippage must be a positive number", "Use --slippage between 0.1 and 10");
   if (slippage > MAX_SLIPPAGE_PCT) return fail("SLIPPAGE_LIMIT", `Max slippage is ${MAX_SLIPPAGE_PCT}%`, "Lower --slippage");
 
   const cooldownMatch = opts.cooldown.match(/^(\d+)h$/);
