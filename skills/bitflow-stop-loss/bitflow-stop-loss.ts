@@ -164,7 +164,7 @@ function walletExists(): boolean {
 }
 
 async function decryptAibtcKeystore(enc: any, password: string): Promise<string> {
-  const { scryptSync, createDecipheriv } = await import("crypto" as any);
+  const { scryptSync, createDecipheriv } = crypto;
   const { N, r, p, keyLen } = enc.scryptParams;
   const salt = Buffer.from(enc.salt, "base64");
   const iv = Buffer.from(enc.iv, "base64");
@@ -244,7 +244,7 @@ async function getStxBalance(address: string): Promise<number> {
   });
   if (!res.ok) throw new Error(`Balance fetch failed: ${res.status}`);
   const data = await res.json() as { balance: string };
-  return parseInt(data.balance, 16);
+  return Number(BigInt(data.balance));
 }
 
 // ─── Bitflow helpers ──────────────────────────────────────────────────────────
@@ -606,22 +606,22 @@ async function cmdRun(opts: {
       const { stxPrivateKey, stxAddress } = await getWalletKeys(password);
       order.walletAddress = stxAddress;
 
-      // Balance check for STX
-      if (order.tokenInSymbol === "STX" || order.tokenInId.toLowerCase().includes("stx")) {
-        const balanceUSTX = await getStxBalance(stxAddress);
-        const requiredUSTX = order.amountHuman * 1_000_000;
-        const gasReserve = 10_000;
-        if (balanceUSTX < requiredUSTX + gasReserve) {
-          const balanceHuman = balanceUSTX / 1_000_000;
-          order.consecutiveFailures++;
-          saveOrder(order);
-          results.push({
-            orderId: order.orderId,
-            status: "error",
-            error: `INSUFFICIENT_BALANCE: need ${order.amountHuman} STX + gas, have ${balanceHuman.toFixed(6)} STX`,
-          });
-          continue;
-        }
+      // Balance check: STX amount (if selling STX) + gas reserve always required
+      const isStxIn = order.tokenInSymbol === "STX" || order.tokenInId.toLowerCase().includes("stx");
+      const balanceUSTX = await getStxBalance(stxAddress);
+      const gasReserve = 10_000;
+      const requiredUSTX = isStxIn ? order.amountHuman * 1_000_000 + gasReserve : gasReserve;
+      if (balanceUSTX < requiredUSTX) {
+        const balanceHuman = balanceUSTX / 1_000_000;
+        const needed = isStxIn ? `${order.amountHuman} STX + gas` : "gas (STX)";
+        order.consecutiveFailures++;
+        saveOrder(order);
+        results.push({
+          orderId: order.orderId,
+          status: "error",
+          error: `INSUFFICIENT_BALANCE: need ${needed}, have ${balanceHuman.toFixed(6)} STX`,
+        });
+        continue;
       }
 
       const { txId, explorerUrl, amountOutHuman } = await executeSwap({
