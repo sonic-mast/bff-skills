@@ -425,17 +425,17 @@ async function cmdSet(opts: {
   slippage: number;
   expires: string;
 }): Promise<void> {
-  if (opts.slippage > MAX_SLIPPAGE_PCT) {
+  if (!Number.isFinite(opts.slippage) || opts.slippage > MAX_SLIPPAGE_PCT) {
     return fail("SLIPPAGE_LIMIT", `Slippage ${opts.slippage}% exceeds hard max ${MAX_SLIPPAGE_PCT}%`, "Use --slippage ≤ 15");
   }
-  if (opts.amount <= 0) {
-    return fail("AMOUNT_INVALID", "Amount must be > 0", "Pass a positive --amount");
+  if (!Number.isFinite(opts.amount) || opts.amount <= 0) {
+    return fail("AMOUNT_INVALID", "Amount must be a positive number", "Pass a positive --amount");
   }
   if (opts.amount > MAX_AMOUNT) {
     return fail("AMOUNT_LIMIT", `Amount ${opts.amount} exceeds hard max ${MAX_AMOUNT}`, "Reduce --amount or split into multiple orders");
   }
-  if (opts.stopPrice <= 0) {
-    return fail("STOP_PRICE_INVALID", "Stop price must be > 0", "Pass a positive --stop-price");
+  if (!Number.isFinite(opts.stopPrice) || opts.stopPrice <= 0) {
+    return fail("STOP_PRICE_INVALID", "Stop price must be a positive number", "Pass a positive --stop-price");
   }
 
   const active = listOrders().filter(o => o.status === "active");
