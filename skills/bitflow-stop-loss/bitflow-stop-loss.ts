@@ -28,7 +28,7 @@ const EXPLORER_BASE = "https://explorer.hiro.so/txid";
 const MAX_SLIPPAGE_PCT = 15;
 const MAX_AMOUNT = 1_000_000;
 const MAX_ORDERS = 20;
-const MAX_CONSECUTIVE_FAILURES = 2;
+const MAX_CONSECUTIVE_FAILURES = 3;
 const PRICE_SAMPLE_UNITS = 1; // use 1-unit quote for price sampling
 
 const EXPIRY_UNITS: Record<string, number> = {
@@ -160,7 +160,7 @@ function saveOrder(order: StopLossOrder): void {
 // ─── Wallet helpers ───────────────────────────────────────────────────────────
 
 function walletExists(): boolean {
-  return fs.existsSync(WALLETS_FILE) || fs.existsSync(path.join(os.homedir(), ".aibtc", "wallet.json"));
+  return !!process.env.STACKS_PRIVATE_KEY || fs.existsSync(WALLETS_FILE) || fs.existsSync(path.join(os.homedir(), ".aibtc", "wallet.json"));
 }
 
 async function decryptAibtcKeystore(enc: any, password: string): Promise<string> {
