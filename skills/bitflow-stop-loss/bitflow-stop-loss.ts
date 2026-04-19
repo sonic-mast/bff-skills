@@ -221,9 +221,16 @@ async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string;
   if (fs.existsSync(legacyPath)) {
     try {
       const w = JSON.parse(fs.readFileSync(legacyPath, "utf-8"));
-      const mnemonic = w.mnemonic ?? w.encrypted_mnemonic ?? w.encryptedMnemonic;
-      if (mnemonic) {
-        const wallet = await generateWallet({ secretKey: mnemonic, password });
+      if (w.mnemonic) {
+        const wallet = await generateWallet({ secretKey: w.mnemonic, password });
+        const account = deriveAccount(wallet, 0);
+        return { stxPrivateKey: account.stxPrivateKey, stxAddress: getStxAddress(account) };
+      }
+      const legacyEnc = w.encrypted_mnemonic ?? w.encryptedMnemonic;
+      if (legacyEnc) {
+        const { decryptMnemonic } = await import("@stacks/encryption" as any);
+        const mnemonic = await decryptMnemonic(legacyEnc, password);
+        const wallet = await generateWallet({ secretKey: mnemonic, password: "" });
         const account = deriveAccount(wallet, 0);
         return { stxPrivateKey: account.stxPrivateKey, stxAddress: getStxAddress(account) };
       }
@@ -606,11 +613,11 @@ async function cmdRun(opts: {
       const { stxPrivateKey, stxAddress } = await getWalletKeys(password);
       order.walletAddress = stxAddress;
 
-      // Balance check: STX amount (if selling STX) + gas reserve always required
+      // Balance check for STX (gas + amount if STX)
       const isStxIn = order.tokenInSymbol === "STX" || order.tokenInId.toLowerCase().includes("stx");
       const balanceUSTX = await getStxBalance(stxAddress);
       const gasReserve = 10_000;
-      const requiredUSTX = isStxIn ? order.amountHuman * 1_000_000 + gasReserve : gasReserve;
+      const requiredUSTX = isStxIn ? (order.amountHuman * 1_000_000 + gasReserve) : gasReserve;
       if (balanceUSTX < requiredUSTX) {
         const balanceHuman = balanceUSTX / 1_000_000;
         const needed = isStxIn ? `${order.amountHuman} STX + gas` : "gas (STX)";
