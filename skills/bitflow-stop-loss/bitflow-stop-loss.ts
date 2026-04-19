@@ -97,8 +97,8 @@ function blocked(action: string, data: Record<string, unknown>): void {
   out({ status: "blocked", action, data, error: null });
 }
 
-function fail(code: string, message: string, next: string, data: Record<string, unknown> = {}): void {
-  out({ status: "error", action: next, data, error: { code, message, next } });
+function fail(action: string, code: string, message: string, next: string, data: Record<string, unknown> = {}): void {
+  out({ status: "error", action, data, error: { code, message, next } });
 }
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -397,7 +397,7 @@ async function cmdDoctor(): Promise<void> {
   if (allOk) {
     success("System healthy — ready to set stop-loss orders", { checks });
   } else {
-    fail("HEALTH_CHECK_FAILED", "One or more health checks failed", "Fix the failing checks and re-run doctor", { checks });
+    fail("doctor", "HEALTH_CHECK_FAILED", "One or more health checks failed", "Fix the failing checks and re-run doctor", { checks });
   }
 }
 
@@ -412,7 +412,7 @@ async function cmdInstallPacks(): Promise<void> {
   ];
   const proc = Bun.spawnSync(["bun", "add", ...packages], { stdio: ["inherit", "inherit", "inherit"] });
   if (proc.exitCode !== 0) {
-    return fail("INSTALL_FAILED", `bun add exited with code ${proc.exitCode}`, "Retry or install packages manually");
+    return fail("install-packs", "INSTALL_FAILED", `bun add exited with code ${proc.exitCode}`, "Retry or install packages manually");
   }
   success("Dependencies installed", { packages });
 }
@@ -425,52 +425,52 @@ async function cmdSet(opts: {
   slippage: number;
   expires: string;
 }): Promise<void> {
-  if (!Number.isFinite(opts.slippage) || opts.slippage > MAX_SLIPPAGE_PCT) {
-    return fail("SLIPPAGE_LIMIT", `Slippage ${opts.slippage}% exceeds hard max ${MAX_SLIPPAGE_PCT}%`, "Use --slippage ≤ 15");
+  if (!Number.isFinite(opts.slippage) || opts.slippage <= 0 || opts.slippage > MAX_SLIPPAGE_PCT) {
+    return fail("set", "SLIPPAGE_LIMIT", `Slippage must be between 0.01% and ${MAX_SLIPPAGE_PCT}%`, "Use --slippage between 0.01 and 15");
   }
   if (!Number.isFinite(opts.amount) || opts.amount <= 0) {
-    return fail("AMOUNT_INVALID", "Amount must be a positive number", "Pass a positive --amount");
+    return fail("set", "AMOUNT_INVALID", "Amount must be a positive number", "Pass a positive --amount");
   }
   if (opts.amount > MAX_AMOUNT) {
-    return fail("AMOUNT_LIMIT", `Amount ${opts.amount} exceeds hard max ${MAX_AMOUNT}`, "Reduce --amount or split into multiple orders");
+    return fail("set", "AMOUNT_LIMIT", `Amount ${opts.amount} exceeds hard max ${MAX_AMOUNT}`, "Reduce --amount or split into multiple orders");
   }
   if (!Number.isFinite(opts.stopPrice) || opts.stopPrice <= 0) {
-    return fail("STOP_PRICE_INVALID", "Stop price must be a positive number", "Pass a positive --stop-price");
+    return fail("set", "STOP_PRICE_INVALID", "Stop price must be a positive number", "Pass a positive --stop-price");
   }
 
   const active = listOrders().filter(o => o.status === "active");
   if (active.length >= MAX_ORDERS) {
-    return fail("ORDER_LIMIT", `Already have ${active.length} active orders (max ${MAX_ORDERS})`, "Cancel some orders first");
+    return fail("set", "ORDER_LIMIT", `Already have ${active.length} active orders (max ${MAX_ORDERS})`, "Cancel some orders first");
   }
 
   let expirySeconds: number;
   try {
     expirySeconds = parseExpiry(opts.expires);
   } catch (e: any) {
-    return fail("EXPIRY_INVALID", e.message, "Use format like '7d', '24h', '2w'");
+    return fail("set", "EXPIRY_INVALID", e.message, "Use format like '7d', '24h', '2w'");
   }
 
   let sdk: any;
   try {
     sdk = await getBitflow();
   } catch (e: any) {
-    return fail("BITFLOW_UNREACHABLE", `Cannot connect to Bitflow: ${e.message}`, "Check connectivity and retry");
+    return fail("set", "BITFLOW_UNREACHABLE", `Cannot connect to Bitflow: ${e.message}`, "Check connectivity and retry");
   }
 
   const tokenIn = await findToken(sdk, opts.tokenIn);
   if (!tokenIn) {
-    return fail("TOKEN_NOT_FOUND", `Token '${opts.tokenIn}' not found on Bitflow`, "Check available tokens via doctor");
+    return fail("set", "TOKEN_NOT_FOUND", `Token '${opts.tokenIn}' not found on Bitflow`, "Check available tokens via doctor");
   }
 
   const tokenOut = await findToken(sdk, opts.tokenOut);
   if (!tokenOut) {
-    return fail("TOKEN_NOT_FOUND", `Token '${opts.tokenOut}' not found on Bitflow`, "Check available tokens via doctor");
+    return fail("set", "TOKEN_NOT_FOUND", `Token '${opts.tokenOut}' not found on Bitflow`, "Check available tokens via doctor");
   }
 
   // Verify route exists with live price sample
   const priceCheck = await samplePrice(sdk, tokenIn.tokenId, tokenOut.tokenId);
   if (priceCheck === null) {
-    return fail("NO_ROUTE", `No swap route from ${tokenIn.symbol} → ${tokenOut.symbol} on Bitflow`, "Choose a supported token pair");
+    return fail("set", "NO_ROUTE", `No swap route from ${tokenIn.symbol} → ${tokenOut.symbol} on Bitflow`, "Choose a supported token pair");
   }
 
   const orderId = crypto.randomBytes(8).toString("hex");
@@ -539,7 +539,7 @@ async function cmdRun(opts: {
   try {
     sdk = await getBitflow();
   } catch (e: any) {
-    return fail("BITFLOW_UNREACHABLE", `Cannot connect to Bitflow: ${e.message}`, "Retry on next heartbeat");
+    return fail("run", "BITFLOW_UNREACHABLE", `Cannot connect to Bitflow: ${e.message}`, "Retry on next heartbeat");
   }
 
   const results: Record<string, unknown>[] = [];
@@ -604,7 +604,7 @@ async function cmdRun(opts: {
 
     const password = opts.walletPassword || process.env.AIBTC_WALLET_PASSWORD || "";
     if (!password) {
-      return fail("WALLET_PASSWORD_MISSING", "AIBTC_WALLET_PASSWORD env var or --wallet-password required for execution", "Set AIBTC_WALLET_PASSWORD and retry");
+      return fail("run", "WALLET_PASSWORD_MISSING", "AIBTC_WALLET_PASSWORD env var or --wallet-password required for execution", "Set AIBTC_WALLET_PASSWORD and retry");
     }
 
     const dryRun = !!process.env.AIBTC_DRY_RUN;
@@ -751,10 +751,10 @@ function cmdList(orderId?: string): void {
 function cmdCancel(orderId: string): void {
   const order = loadOrder(orderId);
   if (!order) {
-    return fail("ORDER_NOT_FOUND", `Order '${orderId}' not found`, "Check available order IDs with list");
+    return fail("cancel", "ORDER_NOT_FOUND", `Order '${orderId}' not found`, "Check available order IDs with list");
   }
   if (order.status !== "active") {
-    return fail("ORDER_NOT_ACTIVE", `Order '${orderId}' is ${order.status} — cannot cancel`, "Only active orders can be cancelled");
+    return fail("cancel", "ORDER_NOT_ACTIVE", `Order '${orderId}' is ${order.status} — cannot cancel`, "Only active orders can be cancelled");
   }
 
   order.status = "cancelled";
@@ -770,7 +770,7 @@ function cmdCancel(orderId: string): void {
 function cmdStatus(orderId: string): void {
   const order = loadOrder(orderId);
   if (!order) {
-    return fail("ORDER_NOT_FOUND", `Order '${orderId}' not found`, "Check available order IDs with list");
+    return fail("status", "ORDER_NOT_FOUND", `Order '${orderId}' not found`, "Check available order IDs with list");
   }
 
   const lastPrice = order.priceSamples.length > 0 ? order.priceSamples[order.priceSamples.length - 1].price : null;
@@ -804,12 +804,12 @@ program.name("bitflow-stop-loss").description("Price-triggered stop-loss orders 
 program
   .command("doctor")
   .description("Health check: Bitflow API, wallet, Stacks connectivity")
-  .action(async () => { try { await cmdDoctor(); } catch (e: any) { fail("UNEXPECTED", e.message, "Re-run doctor"); } });
+  .action(async () => { try { await cmdDoctor(); } catch (e: any) { fail("doctor", "UNEXPECTED", e.message, "Re-run doctor"); } });
 
 program
   .command("install-packs")
   .description("Install required bun/npm packages (one-time setup)")
-  .action(async () => { try { await cmdInstallPacks(); } catch (e: any) { fail("UNEXPECTED", e.message, "Retry install"); } });
+  .action(async () => { try { await cmdInstallPacks(); } catch (e: any) { fail("install-packs", "UNEXPECTED", e.message, "Retry install"); } });
 
 program
   .command("set")
@@ -830,7 +830,7 @@ program
         slippage: opts.slippage,
         expires: opts.expires,
       });
-    } catch (e: any) { fail("UNEXPECTED", e.message, "Re-run set with valid inputs"); }
+    } catch (e: any) { fail("set", "UNEXPECTED", e.message, "Re-run set with valid inputs"); }
   });
 
 program
@@ -844,24 +844,24 @@ program
         confirm: !!opts.confirm,
         walletPassword: opts.walletPassword ?? "",
       });
-    } catch (e: any) { fail("UNEXPECTED", e.message, "Check logs and retry"); }
+    } catch (e: any) { fail("run", "UNEXPECTED", e.message, "Check logs and retry"); }
   });
 
 program
   .command("list")
   .description("List all stop-loss orders")
   .option("--order-id <id>", "Filter to a specific order ID")
-  .action((opts) => { try { cmdList(opts.orderId); } catch (e: any) { fail("UNEXPECTED", e.message, "Re-run list"); } });
+  .action((opts) => { try { cmdList(opts.orderId); } catch (e: any) { fail("list", "UNEXPECTED", e.message, "Re-run list"); } });
 
 program
   .command("cancel <orderId>")
   .description("Cancel an active stop-loss order")
-  .action((orderId) => { try { cmdCancel(orderId); } catch (e: any) { fail("UNEXPECTED", e.message, "Re-run cancel"); } });
+  .action((orderId) => { try { cmdCancel(orderId); } catch (e: any) { fail("cancel", "UNEXPECTED", e.message, "Re-run cancel"); } });
 
 program
   .command("status")
   .description("Detailed status of a specific order")
   .requiredOption("--order <id>", "Order ID")
-  .action((opts) => { try { cmdStatus(opts.order); } catch (e: any) { fail("UNEXPECTED", e.message, "Re-run status"); } });
+  .action((opts) => { try { cmdStatus(opts.order); } catch (e: any) { fail("status", "UNEXPECTED", e.message, "Re-run status"); } });
 
 program.parse(process.argv);
