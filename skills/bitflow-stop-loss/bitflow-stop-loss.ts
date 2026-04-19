@@ -243,8 +243,8 @@ async function getStxBalance(address: string): Promise<number> {
     signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`Balance fetch failed: ${res.status}`);
-  const data = await res.json() as { balance: string };
-  return Number(BigInt(data.balance));
+  const data = await res.json() as { balance: string; locked: string };
+  return Number(BigInt(data.balance) - BigInt(data.locked));
 }
 
 // ─── Bitflow helpers ──────────────────────────────────────────────────────────
@@ -615,11 +615,15 @@ async function cmdRun(opts: {
         const balanceHuman = balanceUSTX / 1_000_000;
         const needed = isStxIn ? `${order.amountHuman} STX + gas` : "gas (STX)";
         order.consecutiveFailures++;
+        if (order.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          order.status = "failed";
+        }
         saveOrder(order);
         results.push({
           orderId: order.orderId,
           status: "error",
           error: `INSUFFICIENT_BALANCE: need ${needed}, have ${balanceHuman.toFixed(6)} STX`,
+          consecutiveFailures: order.consecutiveFailures,
         });
         continue;
       }
