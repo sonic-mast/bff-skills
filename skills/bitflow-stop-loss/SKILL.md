@@ -15,6 +15,14 @@ metadata:
 
 Agent-powered stop-loss orders on Bitflow. Bitflow has no native stop-loss support — the agent IS the protection layer.
 
+## Why agents need it
+
+- **Bitflow has no native stop-loss** — no keeper contracts, no conditional orders, no competing skills
+- Portfolio protection is the #1 risk-management primitive agents need for DeFi positions
+- Enables fully autonomous protection: create the order once, the agent checks and executes on every heartbeat
+- Write skill (executes actual swaps on trigger) — required for daily prize eligibility
+- Complements limit orders (buy-side) with sell-side protection — together they bracket any position
+
 ## What it does
 
 Creates stop-loss orders for token positions on Bitflow. When the market price of your held token falls below your configured threshold, the agent automatically sells to limit downside. Price is sampled via the BitflowSDK quote API on each `run` call.
@@ -117,20 +125,25 @@ Price is sampled via live Bitflow quote: `quote(1 tokenIn → tokenOut)`.
 
 Orders past expiry are automatically cleaned up on the next `run` call.
 
-## Output Format
+## Output contract
 
-All commands emit strict JSON to stdout:
+All commands emit strict JSON to stdout. Logs go to stderr.
 
 ```json
-{
-  "status": "success | error | blocked",
-  "action": "Human-readable next step",
-  "data": { ... },
-  "error": null
-}
+// set — order created
+{ "status": "success", "action": "set", "data": { "orderId": "uuid", "pair": "STX-sBTC", "stopPrice": 0.000035, "amount": 50, "slippage": 3, "expires": "2026-04-26T12:00:00Z" }, "error": null }
+
+// run — order triggered and executed
+{ "status": "success", "action": "execute", "data": { "orderId": "uuid", "executionPrice": 0.000034, "txId": "0x8f3a...", "amount": 50, "dryRun": false }, "error": null }
+
+// run — no triggers (dry-run preview)
+{ "status": "blocked", "action": "run", "data": { "checked": 2, "triggered": 0, "orders": [{ "orderId": "uuid", "currentPrice": 0.000038, "stopPrice": 0.000035, "distance": "8.6%" }] }, "error": null }
+
+// error
+{ "status": "error", "action": "set", "data": null, "error": "NO_ROUTE: no Bitflow route found for STX→FAKE" }
 ```
 
-## Safety Guardrails (enforced in code)
+## Safety notes
 
 | Guardrail | Limit | Enforcement |
 |-----------|-------|-------------|

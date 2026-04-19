@@ -289,7 +289,7 @@ async function findToken(sdk: any, symbol: string): Promise<{ tokenId: string; t
 async function samplePrice(sdk: any, tokenInId: string, tokenOutId: string): Promise<number | null> {
   try {
     const result = await sdk.getQuoteForRoute(tokenInId, tokenOutId, PRICE_SAMPLE_UNITS);
-    if (!result?.bestRoute?.quote) return null;
+    if (result?.bestRoute?.quote == null) return null;
     return result.bestRoute.quote; // tokenOut per PRICE_SAMPLE_UNITS tokenIn
   } catch { return null; }
 }
