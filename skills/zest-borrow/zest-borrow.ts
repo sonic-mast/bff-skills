@@ -55,6 +55,14 @@ function fail(code: string, message: string, next: string): never {
   return emit({ status: "error", action: next, data: {}, error: { code, message, next } });
 }
 
+// ─── Asset lookup (case-insensitive) ─────────────────────────────────────────
+
+function findAsset(input: string): string | undefined {
+  if (ASSETS[input]) return input;
+  const upper = input.toUpperCase();
+  return Object.keys(ASSETS).find((k) => k.toUpperCase() === upper);
+}
+
 // ─── Hiro API helper ──────────────────────────────────────────────────────────
 
 async function hirofetch(path: string): Promise<unknown> {
@@ -134,8 +142,8 @@ async function cmdBorrow(opts: {
   maxUnits?: number;
   confirm: boolean;
 }): Promise<never> {
-  const asset = opts.asset.toUpperCase();
-  if (!ASSETS[asset]) {
+  const assetKey = findAsset(opts.asset);
+  if (!assetKey) {
     return fail(
       "UNKNOWN_ASSET",
       `Unknown asset "${opts.asset}". Supported: ${Object.keys(ASSETS).join(", ")}`,
@@ -153,12 +161,12 @@ async function cmdBorrow(opts: {
     );
   }
 
-  const { contract, decimals } = ASSETS[asset];
+  const { contract, decimals } = ASSETS[assetKey];
   const amountUnits = toBaseUnits(opts.amount, decimals);
 
   if (!opts.confirm) {
     return blocked("borrow_preview", {
-      asset,
+      asset: assetKey,
       amount: opts.amount,
       amount_units: amountUnits,
       contract,
@@ -168,14 +176,14 @@ async function cmdBorrow(opts: {
 
   return success("BORROW_READY", {
     mcp_tool: "zest_borrow",
-    params: { asset, amount: amountUnits, postConditionMode: "deny" },
+    params: { asset: assetKey, amount: amountUnits, postConditionMode: "deny" },
     safety_checklist: [
       "1. Call zest_get_position to verify current health factor",
       `2. Confirm post-borrow health factor will remain >= ${HEALTH_FACTOR_FLOOR}`,
       "3. Call zest_borrow with the params above",
       "4. Log the returned tx ID in run state",
     ],
-    instruction: `Parent agent: call zest_borrow(asset="${asset}", amount="${amountUnits}", postConditionMode="deny"). Verify health factor >= ${HEALTH_FACTOR_FLOOR} via zest_get_position BEFORE executing.`,
+    instruction: `Parent agent: call zest_borrow(asset="${assetKey}", amount="${amountUnits}", postConditionMode="deny"). Verify health factor >= ${HEALTH_FACTOR_FLOOR} via zest_get_position BEFORE executing.`,
   });
 }
 
@@ -184,8 +192,8 @@ async function cmdRepay(opts: {
   amount: number;
   confirm: boolean;
 }): Promise<never> {
-  const asset = opts.asset.toUpperCase();
-  if (!ASSETS[asset]) {
+  const assetKey = findAsset(opts.asset);
+  if (!assetKey) {
     return fail(
       "UNKNOWN_ASSET",
       `Unknown asset "${opts.asset}". Supported: ${Object.keys(ASSETS).join(", ")}`,
@@ -194,12 +202,12 @@ async function cmdRepay(opts: {
   }
   if (opts.amount <= 0) return fail("INVALID_AMOUNT", "Amount must be > 0", "repay");
 
-  const { decimals } = ASSETS[asset];
+  const { decimals } = ASSETS[assetKey];
   const amountUnits = toBaseUnits(opts.amount, decimals);
 
   if (!opts.confirm) {
     return blocked("repay_preview", {
-      asset,
+      asset: assetKey,
       amount: opts.amount,
       amount_units: amountUnits,
       warning: "Add --confirm to generate REPAY_READY payload.",
@@ -208,8 +216,8 @@ async function cmdRepay(opts: {
 
   return success("REPAY_READY", {
     mcp_tool: "zest_repay",
-    params: { asset, amount: amountUnits, postConditionMode: "deny" },
-    instruction: `Parent agent: call zest_repay(asset="${asset}", amount="${amountUnits}", postConditionMode="deny") to reduce debt position.`,
+    params: { asset: assetKey, amount: amountUnits, postConditionMode: "deny" },
+    instruction: `Parent agent: call zest_repay(asset="${assetKey}", amount="${amountUnits}", postConditionMode="deny") to reduce debt position.`,
   });
 }
 
