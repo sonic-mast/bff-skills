@@ -260,7 +260,7 @@ async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string;
   if (fs.existsSync(legacyPath)) {
     try {
       const w        = JSON.parse(fs.readFileSync(legacyPath, "utf-8"));
-      const mnemonic = w.mnemonic ?? w.encrypted_mnemonic ?? w.encryptedMnemonic;
+      const mnemonic = w.mnemonic;
       if (mnemonic) {
         const wallet  = await generateWallet({ secretKey: mnemonic, password });
         const account = deriveAccount(wallet, 0);
@@ -282,8 +282,8 @@ async function getStxBalance(address: string): Promise<number> {
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`Balance fetch failed: ${res.status}`);
-  const data = await res.json() as { balance: string };
-  return parseInt(data.balance, 16);
+  const data = await res.json() as { balance: string; locked: string };
+  return parseInt(data.balance, 16) - parseInt(data.locked ?? '0x0', 16);
 }
 
 // ─── ALEX SDK helpers ─────────────────────────────────────────────────────────
@@ -1193,3 +1193,4 @@ program
 program.parseAsync(process.argv).catch(e => {
   fail("PARSE_ERROR", e.message, "Run: bun run alex-dca/alex-dca.ts --help");
 });
+
