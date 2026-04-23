@@ -16,6 +16,14 @@ metadata:
 Automate recurring token purchases (or sales) on Stacks mainnet via **ALEX DEX**.
 The agent executes each order on schedule — no third-party contracts required.
 
+## What it does
+
+Executes recurring token swaps on ALEX DEX at a fixed interval. On each `run` call, the skill checks the frequency gate (hourly/daily/weekly/biweekly), fetches a live quote via the ALEX SDK, enforces a slippage hard limit, verifies the STX balance, and broadcasts the swap with `postConditionMode: deny`. All plan state (config, tx hashes, execution log, avg cost) is persisted locally at `~/.aibtc/alex-dca/<plan-id>.json`.
+
+## Why agents need it
+
+DCA removes timing risk from token accumulation. Agents running treasury management, savings strategies, or scheduled rebalancing can set a plan once and let the skill handle execution autonomously. The frequency gate means it is safe to call on every heartbeat — early calls return `blocked` with time remaining rather than firing early. This makes the skill cron-friendly without requiring external scheduling logic.
+
 ## How It Works
 
 1. `setup` creates a local plan file with the full DCA schedule
@@ -118,7 +126,9 @@ Pass `--total` in **human-readable units** (not microunits):
 | ALEX | 8 | `--total 1000` = 1000 ALEX |
 | aBTC | 8 | `--total 0.001` = 0.001 aBTC |
 
-## Safety Guardrails (enforced in code)
+## Safety notes
+
+All guardrails are enforced in code — not doc-only.
 
 | Guardrail | Limit | Enforcement |
 |-----------|-------|-------------|
@@ -131,6 +141,28 @@ Pass `--total` in **human-readable units** (not microunits):
 | postConditionMode | deny | Enforced on every swap tx |
 | Private key exposure | Never | Zero exposure in all output |
 | Dry run mode | `AIBTC_DRY_RUN=1` | Simulates without broadcasting |
+
+## Output contract
+
+All commands emit strict JSON to stdout:
+
+```json
+{
+  "status": "success | error | blocked",
+  "action": "Human-readable next step",
+  "data": {
+    "telegram": "📊 Emoji-rich Telegram-friendly summary",
+    "...": "command-specific fields"
+  },
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "...",
+    "next": "suggested action"
+  } | null
+}
+```
+
+`blocked` status means the skill is waiting for operator input (e.g. `--confirm` not provided, frequency gate not elapsed). `error` status means execution failed. `success` means the action completed.
 
 ## State Files
 
