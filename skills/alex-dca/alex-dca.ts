@@ -554,7 +554,8 @@ async function cmdInstallPacks(pack: string): Promise<void> {
   ];
 
   const { spawnSync } = require("child_process");
-  const result = spawnSync("bun", ["add", ...packages], { stdio: "inherit" });
+  const result = spawnSync("bun", ["add", ...packages], { stdio: ["inherit", "pipe", "inherit"] });
+  if (result.stdout?.length) process.stderr.write(result.stdout);
 
   if (result.status !== 0) {
     fail("INSTALL_FAILED", "bun add failed", "Check internet connection and retry");
