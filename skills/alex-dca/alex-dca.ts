@@ -333,7 +333,7 @@ function createCLIProvider(stxPrivateKey: string): any {
         network:          STACKS_MAINNET,
         senderKey:        stxPrivateKey,
         anchorMode:       AnchorMode.Any,
-        fee:              5000n,
+        fee:              10000n,
       });
 
       const result = await broadcastTransaction({ transaction: tx, network: STACKS_MAINNET });
@@ -373,7 +373,8 @@ async function executeAlexSwap(opts: {
   const sdk = await getAlexSDK();
   const amountInMicro  = humanToMicro(opts.amountHuman, opts.tokenInDecimals);
   const amountOutMicro = await sdk.getAmountTo(opts.currencyIn, amountInMicro, opts.currencyOut) as bigint;
-  const minOutMicro    = BigInt(Math.floor(Number(amountOutMicro) * (1 - opts.slippagePct / 100)));
+  const slippageBasisPoints = Math.round((100 - opts.slippagePct) * 100);
+  const minOutMicro         = amountOutMicro * BigInt(slippageBasisPoints) / 10000n;
   const amountOutHuman = microToHuman(amountOutMicro, opts.tokenOutDecimals);
 
   const provider = createCLIProvider(opts.stxPrivateKey);
@@ -614,10 +615,6 @@ async function cmdSetup(opts: {
   }
 
   const orderSizeHuman = totalHuman / ordersNum;
-  if (orderSizeHuman < 0.000001) {
-    fail("ORDER_TOO_SMALL", `Order size ${orderSizeHuman} is too small`, "Increase --total or decrease --orders");
-    return;
-  }
 
   // ── Resolve tokens ──
   const tokenIn  = resolveToken(opts.tokenIn);
@@ -631,6 +628,11 @@ async function cmdSetup(opts: {
   if (!tokenOut) {
     const supported = Object.keys(SYMBOL_TO_CURRENCY).join(", ");
     fail("TOKEN_NOT_FOUND", `"${opts.tokenOut}" not found. Supported: ${supported}`, "Use a supported symbol");
+    return;
+  }
+
+  if (humanToMicro(orderSizeHuman, tokenIn.decimals) === 0n) {
+    fail("ORDER_TOO_SMALL", `Order size ${orderSizeHuman} rounds to zero atomic units for ${opts.tokenIn.toUpperCase()}`, "Increase --total or decrease --orders");
     return;
   }
   if (tokenIn.currencyId === tokenOut.currencyId) {
@@ -747,7 +749,7 @@ async function cmdPlan(planId: string): Promise<void> {
 
   const orders = Array.from({ length: plan.ordersTotal }, (_, i) => {
     const scheduledAt = plan.startAt + i * plan.frequencySeconds * 1000;
-    const log         = plan.orderLog.find(o => o.orderIndex === i);
+    const log         = plan.orderLog.slice().reverse().find(o => o.orderIndex === i);
     return {
       orderIndex:        i + 1,
       scheduledAt:       new Date(scheduledAt).toISOString().slice(0, 10),
@@ -863,7 +865,7 @@ async function cmdRun(planId: string, confirm: boolean, walletPassword?: string)
   if (plan.tokenInSymbol.toUpperCase() === "STX") {
     try {
       const balAtomic    = await getStxBalance(walletKeys.stxAddress);
-      const neededAtomic = Number(humanToMicro(plan.orderSizeHuman, plan.tokenInDecimals)) + 5000;
+      const neededAtomic = Number(humanToMicro(plan.orderSizeHuman, plan.tokenInDecimals)) + 10000;
       if (balAtomic < neededAtomic) {
         const balHuman = microToHuman(balAtomic, 6);
         fail(
@@ -875,6 +877,16 @@ async function cmdRun(planId: string, confirm: boolean, walletPassword?: string)
       }
     } catch {
       process.stderr.write("Warning: could not verify balance\n");
+    }
+  } else {
+    try {
+      const balAtomic = await getStxBalance(walletKeys.stxAddress);
+      if (balAtomic < 10000) {
+        fail("INSUFFICIENT_STX_FOR_FEES", "Wallet needs ≥ 0.01 STX to pay transaction fees", "Top up STX balance");
+        return;
+      }
+    } catch {
+      process.stderr.write("Warning: could not verify STX fee balance\n");
     }
   }
 
