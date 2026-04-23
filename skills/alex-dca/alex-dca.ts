@@ -203,7 +203,7 @@ function walletExists(): boolean {
 }
 
 async function decryptAibtcKeystore(enc: any, password: string): Promise<string> {
-  const { scryptSync, createDecipheriv } = await import("crypto" as any);
+  const { scryptSync, createDecipheriv } = crypto;
   const { N, r, p, keyLen } = enc.scryptParams;
   const salt       = Buffer.from(enc.salt, "base64");
   const iv         = Buffer.from(enc.iv, "base64");
@@ -260,7 +260,7 @@ async function getWalletKeys(password: string): Promise<{ stxPrivateKey: string;
   if (fs.existsSync(legacyPath)) {
     try {
       const w        = JSON.parse(fs.readFileSync(legacyPath, "utf-8"));
-      const mnemonic = w.mnemonic;
+      const mnemonic = w.mnemonic ?? w.encrypted_mnemonic ?? w.encryptedMnemonic;
       if (mnemonic) {
         const wallet  = await generateWallet({ secretKey: mnemonic, password });
         const account = deriveAccount(wallet, 0);
