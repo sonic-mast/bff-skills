@@ -34,6 +34,113 @@ Recurring DCA into Bitflow HODLMM DLMM pools. Traditional DCA buys tokens at reg
 
 Any Bitflow DLMM pool — `dlmm_1` (STX/sBTC) is the default. Use `doctor` to list available pools.
 
+## Commands
+
+### `doctor`
+
+Verify wallet configuration, HODLMM API access, and available pools.
+
+```bash
+bun run hodlmm-dca/hodlmm-dca.ts doctor
+```
+
+### `setup`
+
+Configure a DCA plan.
+
+```bash
+bun run hodlmm-dca/hodlmm-dca.ts setup \
+  --pool dlmm_1 \
+  --stx-per-run 10 \
+  --interval-hours 24 \
+  --bin-spread 3 \
+  --slippage 1
+```
+
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--pool` | Yes | — | HODLMM pool ID (e.g. `dlmm_1`) |
+| `--stx-per-run` | Yes | — | STX to swap per DCA run (max 500) |
+| `--interval-hours` | Yes | — | Minimum hours between runs (min 1) |
+| `--bin-spread` | No | 3 | Bins each side of active for LP deploy (max 5) |
+| `--slippage` | No | 1 | Max swap slippage % (max 5) |
+| `--max-runs` | No | unlimited | Optional cap on total DCA runs |
+
+### `run`
+
+Check frequency gate and execute DCA if due.
+
+```bash
+# Dry-run (no on-chain execution)
+bun run hodlmm-dca/hodlmm-dca.ts run
+
+# Execute on-chain
+bun run hodlmm-dca/hodlmm-dca.ts run --confirm
+```
+
+### `status`
+
+Show current plan and progress.
+
+```bash
+bun run hodlmm-dca/hodlmm-dca.ts status
+```
+
+### `history`
+
+List all DCA entries.
+
+```bash
+bun run hodlmm-dca/hodlmm-dca.ts history --limit 20
+```
+
+### `cancel`
+
+Cancel the active DCA plan.
+
+```bash
+bun run hodlmm-dca/hodlmm-dca.ts cancel
+```
+
+## Safety notes
+
+| Guard | Value | Configurable |
+|-------|-------|-------------|
+| Max STX per run | 500 STX | No (hardcoded) |
+| Max total per plan | 10,000 STX | No (hardcoded) |
+| Min interval between runs | 1 hour | No (hardcoded) |
+| Max slippage | 5% | Via `--slippage` (max 5%) |
+| Max bin spread | ±5 bins from active | Via `--bin-spread` (max 5) |
+| Confirmation gate | `--confirm` required | Always enforced |
+| Balance check | Before every execution | Always enforced |
+| Consecutive failure limit | 3 — auto-pauses plan | Always enforced |
+
+**Refusal conditions (hardcoded):**
+- Refuses `run` if frequency gate is closed
+- Refuses `run` if STX balance < `stx_per_run + 0.1 STX` gas buffer
+- Refuses `setup` if `stx_per_run` > 500 STX
+- Refuses `run` if total deployed would exceed 10,000 STX
+- Refuses execution without `--confirm` flag
+- Refuses if HODLMM API is unreachable
+
+## Output contract
+
+All output is JSON to stdout. Logs go to stderr.
+
+```json
+// setup — plan created
+{ "status": "success", "action": "setup", "data": { "plan": { "pool_id": "dlmm_1", "stx_per_run": 10, "interval_hours": 24 }, "pool": { "pair": "STX/sBTC", "activeBin": 284 } }, "error": null }
+
+// run --confirm — DCA executed
+{ "status": "success", "action": "run", "data": { "dryRun": false, "entry": { "stx_amount": 10, "tx_id": "0xabc...", "active_bin": 284, "mcp_deposit_cmd": "bitflow_hodlmm_add_liquidity\npool_id: \"dlmm_1\"\nbins: [...]" } }, "error": null }
+
+// run — not due yet
+{ "status": "blocked", "action": "run", "data": { "minutesUntilDue": 42 }, "error": "Not due yet — 42m remaining" }
+
+// status
+{ "status": "success", "action": "status", "data": { "plan": { "status": "active", "run_count": 3, "total_deployed": 30 }, "stats": { "is_due": false, "minutes_until_due": 1380 } }, "error": null }
+```
+
 ## Examples
 
 ```bash
