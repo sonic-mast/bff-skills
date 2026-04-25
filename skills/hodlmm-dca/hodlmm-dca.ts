@@ -522,7 +522,7 @@ program
   .option(
     "--bin-spread <n>",
     "Bins on each side of active bin for LP deploy (max 5)",
-    parseInt,
+    (v: string) => parseInt(v, 10),
     3
   )
   .option(
@@ -531,7 +531,7 @@ program
     parseFloat,
     1
   )
-  .option("--max-runs <n>", "Optional: max total DCA runs", parseInt)
+  .option("--max-runs <n>", "Optional: max total DCA runs", (v: string) => parseInt(v, 10))
   .action(async (opts) => {
     // Validate limits
     if (opts.stxPerRun > MAX_STX_PER_RUN) {
@@ -880,7 +880,7 @@ program
 program
   .command("history")
   .description("List all DCA entries")
-  .option("--limit <n>", "Max entries to show", parseInt, 20)
+  .option("--limit <n>", "Max entries to show", (v: string) => parseInt(v, 10), 20)
   .action((opts) => {
     const history = loadHistory();
     const page = history.slice(-opts.limit);
