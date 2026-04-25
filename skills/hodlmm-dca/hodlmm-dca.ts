@@ -22,6 +22,7 @@ import * as crypto from "crypto";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const HODLMM_API = "https://bff.bitflowapis.finance/api/app/v1";
+const BITFLOW_QUOTES = "https://bff.bitflowapis.finance/api/quotes/v1";
 const BITFLOW_API_HOST = "https://api.bitflowapis.finance";
 const STACKS_API = "https://api.mainnet.hiro.so";
 const EXPLORER_BASE = "https://explorer.hiro.so/txid";
@@ -185,33 +186,54 @@ async function getWalletKeys(
 
 // ─── HODLMM API ────────────────────────────────────────────────────────────────
 
+// Symbol lookup from contract ID — covers known tokens without external call
+const KNOWN_SYMBOLS: Record<string, { symbol: string; decimals: number }> = {
+  "SM1793C4R5PZ4NS4VQ4WMP7SKKYVH8JZEWSZ9HCCR.token-stx-v-1-2": { symbol: "STX", decimals: 6 },
+  "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token":       { symbol: "sBTC", decimals: 8 },
+  "SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx":            { symbol: "USDCx", decimals: 6 },
+  "SPN5AKG35QZSK2M8GAMR4AFX45659RJHDW353HSG.usdh-token-v1":     { symbol: "USDh", decimals: 6 },
+  "SP2XD7417HGPRTREMKF748VNEQPDRR0RMANB7X1NK.token-aeusdc":     { symbol: "aeUSDC", decimals: 6 },
+};
+
+function tokenInfo(contract: string): { symbol: string; decimals: number } {
+  return KNOWN_SYMBOLS[contract] ?? { symbol: contract.split(".")[1] ?? contract, decimals: 6 };
+}
+
 async function fetchPools(): Promise<PoolMeta[]> {
-  const raw = await fetchJson<Record<string, unknown>>(
-    `${HODLMM_API}/pools?amm_type=dlmm`
+  // Quotes API has active_bin and snake_case fields
+  const raw = await fetchJson<unknown>(
+    `${BITFLOW_QUOTES}/pools?amm_type=dlmm`
   );
-  const list = (
-    raw.data ?? raw.results ?? raw.pools ?? (Array.isArray(raw) ? raw : [])
-  ) as Record<string, unknown>[];
-  return list.map((p) => ({
-    pool_id: String(p.pool_id ?? p.id ?? ""),
-    pool_contract: String(p.pool_contract ?? p.contract ?? ""),
-    token_x: String(p.token_x ?? ""),
-    token_y: String(p.token_y ?? ""),
-    token_x_symbol: String(p.token_x_symbol ?? p.tokenX?.symbol ?? "TKX"),
-    token_y_symbol: String(p.token_y_symbol ?? p.tokenY?.symbol ?? "TKY"),
-    token_x_decimals: Number(p.token_x_decimals ?? 6),
-    token_y_decimals: Number(p.token_y_decimals ?? 6),
-    active_bin: Number(p.active_bin ?? p.activeBin ?? 0),
-    bin_step: Number(p.bin_step ?? p.binStep ?? 1),
-    fee_bps: Number(p.fee_bps ?? p.feeBps ?? 0),
-  }));
+  const r = raw as Record<string, unknown>;
+  const list = (Array.isArray(raw) ? raw : r.pools ?? r.data ?? r.results ?? []) as Record<string, unknown>[];
+  return list.map((p) => {
+    const txContract = String(p.token_x ?? "");
+    const tyContract = String(p.token_y ?? "");
+    const tx = tokenInfo(txContract);
+    const ty = tokenInfo(tyContract);
+    return {
+      pool_id: String(p.pool_id ?? ""),
+      pool_contract: String(p.pool_token ?? p.pool_contract ?? ""),
+      token_x: txContract,
+      token_y: tyContract,
+      token_x_symbol: tx.symbol,
+      token_y_symbol: ty.symbol,
+      token_x_decimals: tx.decimals,
+      token_y_decimals: ty.decimals,
+      active_bin: Number(p.active_bin ?? 0),
+      bin_step: Number(p.bin_step ?? 1),
+      fee_bps: Number(p.x_total_fee_bps ?? 30),
+    };
+  });
 }
 
 async function fetchStxBalance(address: string): Promise<number> {
-  const data = await fetchJson<{ stx?: { balance?: string } }>(
+  const data = await fetchJson<{ balance?: string; stx?: { balance?: string } }>(
     `${STACKS_API}/extended/v1/address/${address}/stx`
   );
-  return Number(data?.stx?.balance ?? 0) / 1_000_000;
+  // API returns { balance: "microSTX" } at root level
+  const raw = data?.balance ?? data?.stx?.balance ?? "0";
+  return Number(raw) / 1_000_000;
 }
 
 // ─── BitflowSDK swap ───────────────────────────────────────────────────────────
@@ -269,6 +291,16 @@ async function executeSwap(opts: {
     quoteResult.bestRoute.amountOut ??
     0;
 
+  // Dry-run: skip prepareSwap (requires valid sender address) and return simulation
+  if (opts.dryRun) {
+    const fakeTxId = "dry-run-" + crypto.randomBytes(8).toString("hex");
+    return {
+      txId: fakeTxId,
+      explorerUrl: `${EXPLORER_BASE}/${fakeTxId}?chain=mainnet`,
+      amountOut,
+    };
+  }
+
   const swapExecutionData = {
     route: quoteResult.bestRoute.route,
     amount: opts.amountHuman,
@@ -281,15 +313,6 @@ async function executeSwap(opts: {
     opts.senderAddress,
     opts.slippagePct / 100
   );
-
-  if (opts.dryRun) {
-    const fakeTxId = "dry-run-" + crypto.randomBytes(8).toString("hex");
-    return {
-      txId: fakeTxId,
-      explorerUrl: `${EXPLORER_BASE}/${fakeTxId}?chain=mainnet`,
-      amountOut,
-    };
-  }
 
   const {
     makeContractCall,
