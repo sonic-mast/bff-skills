@@ -236,6 +236,28 @@ async function fetchStxBalance(address: string): Promise<number> {
   return Number(raw) / 1_000_000;
 }
 
+// Determine which token in the pool is NOT STX so we know the swap target.
+// DLMM pools can have STX as either token_x or token_y.
+function resolveSwapTarget(pool: PoolMeta): {
+  targetSymbol: string;
+  targetDecimals: number;
+  isTargetTokenX: boolean; // true = acquired token goes into amount_x bins
+} {
+  const isStxY = pool.token_y_symbol.toUpperCase() === "STX";
+  if (isStxY) {
+    return {
+      targetSymbol: pool.token_x_symbol,
+      targetDecimals: pool.token_x_decimals,
+      isTargetTokenX: true,
+    };
+  }
+  return {
+    targetSymbol: pool.token_y_symbol,
+    targetDecimals: pool.token_y_decimals,
+    isTargetTokenX: false,
+  };
+}
+
 // ─── BitflowSDK swap ───────────────────────────────────────────────────────────
 
 async function executeSwap(opts: {
@@ -247,7 +269,7 @@ async function executeSwap(opts: {
   slippagePct: number;
   dryRun: boolean;
 }): Promise<{ txId: string; explorerUrl: string; amountOut: number }> {
-  const { BitflowSDK } = require("@bitflowlabs/core-sdk");
+  const { BitflowSDK } = await import("@bitflowlabs/core-sdk" as string);
   const sdk = new BitflowSDK({
     BITFLOW_API_HOST: BITFLOW_API_HOST,
     API_HOST: BITFLOW_API_HOST,
@@ -393,16 +415,19 @@ function buildDepositCmd(
   activeBin: number,
   binSpread: number,
   tokenOutAmount: number,
-  slippagePct: number
+  slippagePct: number,
+  isTargetTokenX: boolean
 ): string {
-  // Distribute equally across ±binSpread bins centered on activeBin
+  // Distribute equally across ±binSpread bins centered on activeBin.
+  // Place acquired tokens on the correct side of the DLMM bin.
   const numBins = binSpread * 2 + 1;
   const amountPerBin = Math.floor(tokenOutAmount / numBins);
   const bins = Array.from({ length: numBins }, (_, i) => {
     const binOffset = i - binSpread;
     const binId = activeBin + binOffset;
-    // Token_y-side bins (for acquired token_y from swap)
-    return `{bin_id: ${binId}, amount_x: 0, amount_y: ${amountPerBin}}`;
+    const amountX = isTargetTokenX ? amountPerBin : 0;
+    const amountY = isTargetTokenX ? 0 : amountPerBin;
+    return `{bin_id: ${binId}, amount_x: ${amountX}, amount_y: ${amountY}}`;
   });
 
   return [
@@ -721,11 +746,17 @@ program
       }
     }
 
+    // Determine swap direction (STX can be token_x or token_y in DLMM pools)
+    const swapTarget = resolveSwapTarget(pool);
+
+    // DLMM bin price: (1 + bin_step / 10000) ^ active_bin
+    const binPrice = Math.pow(1 + pool.bin_step / 10000, pool.active_bin).toFixed(8);
+
     // Execute swap
     log(
       isDryRun
-        ? `Dry-run: ${plan.stx_per_run} STX → ${pool.token_y_symbol} on ${pool.pool_id} (active bin ${pool.active_bin})`
-        : `Executing: ${plan.stx_per_run} STX → ${pool.token_y_symbol} on ${pool.pool_id}`
+        ? `Dry-run: ${plan.stx_per_run} STX → ${swapTarget.targetSymbol} on ${pool.pool_id} (active bin ${pool.active_bin})`
+        : `Executing: ${plan.stx_per_run} STX → ${swapTarget.targetSymbol} on ${pool.pool_id}`
     );
 
     const entry: DcaEntry = {
@@ -733,10 +764,10 @@ program
       timestamp: new Date().toISOString(),
       pool_id: plan.pool_id,
       active_bin: pool.active_bin,
-      bin_price: String(pool.active_bin * pool.bin_step),
+      bin_price: binPrice,
       stx_amount: plan.stx_per_run,
       token_in: "STX",
-      token_out: pool.token_y_symbol,
+      token_out: swapTarget.targetSymbol,
       amount_out_estimated: 0,
       tx_id: null,
       explorer_url: null,
@@ -748,7 +779,7 @@ program
     try {
       const swapResult = await executeSwap({
         tokenInSymbol: "STX",
-        tokenOutSymbol: pool.token_y_symbol,
+        tokenOutSymbol: swapTarget.targetSymbol,
         amountHuman: plan.stx_per_run,
         senderAddress: stxAddress,
         stxPrivateKey,
@@ -760,16 +791,18 @@ program
       entry.tx_id = swapResult.txId;
       entry.explorer_url = swapResult.explorerUrl;
 
-      // Build add-liquidity MCP command for the acquired tokens
+      // Build add-liquidity MCP command for the acquired tokens.
+      // Use the correct token side and decimals based on which token was acquired.
       const amountOutMicro = Math.floor(
-        swapResult.amountOut * Math.pow(10, pool.token_y_decimals)
+        swapResult.amountOut * Math.pow(10, swapTarget.targetDecimals)
       );
       entry.mcp_deposit_cmd = buildDepositCmd(
         plan.pool_id,
         pool.active_bin,
         plan.bin_spread,
         amountOutMicro,
-        plan.slippage_pct
+        plan.slippage_pct,
+        swapTarget.isTargetTokenX
       );
 
       // Update plan state
